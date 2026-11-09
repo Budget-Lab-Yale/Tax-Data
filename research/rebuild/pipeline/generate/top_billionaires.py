@@ -61,64 +61,27 @@ def wealth_parts(p):
     return p, known
 
 
-def last_list_year():
-    """The latest year with a Forbes list in settings tilt.top.billionaire_lists, or None."""
-    years = [int(y) for y in S['billionaire_lists']]
-    return max(years) if years else None
-
-
 def list_for_year(year):
     """The list for tax year year and how it is used: ('list', the year's own list, year); after the last list,
-    ('grown', the last list grown to the year, the last list's year); otherwise (None, None, None)."""
+    ('grown', None, the last list's year), the caller growing the last list (grow_list); otherwise (None, None, None)."""
     lst = read_list(year)
     if lst is not None:
         return 'list', lst, year
-    last = last_list_year()
+    last = max((int(y) for y in S['billionaire_lists']), default=None)   # the latest year with a list
     if last is not None and year > last:
-        return 'grown', grow_list(read_list(last), last, year), last
+        return 'grown', None, last
     return None, None, None
 
 
-def growth_factors(s, t):
-    """The growth per return from s to t of the billionaires' three holdings. Public stock (as value.equities) and a
-    private business (as value.pass_throughs) grow by the items table's series over the growth in returns, with no add
-    factors; private real estate (value.re_fund) by the SCF's mean per tax unit between waves, as grow_dollars grows
-    it. Returns {part: (factor, description)}."""
-    from prep import build_table as BT
-    from scale import maps as MP
-    from scale import projection_growth as PG
-    from scale import projection_steps as PS
-    assert 2024 <= s < t, f'billionaires grown from {s} to {t}: only forward from a list year after 2023'
-    cols = {'public': 'value.equities', 'private_pt': 'value.pass_throughs', 'private_re': 'value.re_fund'}
-    tab, add = PS.items_table(), PS.add_factors_table()
-    R = PG.returns_growth(s, t)
-    out, scf = {}, None
-    for k, c in cols.items():
-        if k != 'private_re':
-            spec = tab.loc[c, 'series']
-            assert spec.startswith('file:') and tab.loc[c, 'kind'] == 'total', f'{c}: the items table row is {spec}, not a file series of kind total'
-            assert not (add['column'] == c).any(), f'{c}: add factors on a column the billionaires are grown by'
-            g, what = PS.series_growth(spec, s, t)
-            out[k] = (g / R, f'{c}: {what} (growth in total) over the growth in returns {R:.5f}')
-            continue
-        if scf is None:   # as grow_dollars: the SCF rows of the training table
-            scf = pd.read_parquet(common.TABLE, columns=['source', 'year', 'weight'] + BT.SCF_AMOUNTS)
-            scf = scf[scf.source == 'scf']
-        f = MP.scf_growth(scf, s - 1, t - 1)[c]
-        assert np.isfinite(f) and f > 0, f'{c}: no SCF growth factor {s} to {t}'
-        out[k] = (float(f), f'{c}: SCF mean per tax unit, wave of {t - 1} over wave of {s - 1} (growth.yaml, as grow_dollars)')
-    return out
-
-
-def grow_list(lst, s, t, factor=None):
+def grow_list(lst, s, t, factor):
     """The year-s list carried to year t. Each person's net worth is split into its three parts as build_billionaires
-    splits it, and each part grown by growth_factors(s, t), or all by factor, a pair (factor, description), if given.
-    The public share becomes the grown public part over grown net worth, and ages are raised by t - s. Income is not
-    carried: build_billionaires computes it from the grown wealth."""
+    splits it, and each part grown by factor, a pair (factor, description). The public share becomes the grown public
+    part over grown net worth, and ages are raised by t - s. Income is not carried: build_billionaires computes it from
+    the grown wealth."""
     units, people = tax_units(lst)
     p = people_attributes(people)
     p, _ = wealth_parts(p)
-    f = growth_factors(s, t) if factor is None else {k: factor for k in ('public', 'private_pt', 'private_re')}
+    f = {k: factor for k in ('public', 'private_pt', 'private_re')}
     grown = {k: p[k].to_numpy(float) * f[k][0] for k in f}
     nw = grown['public'] + grown['private_pt'] + grown['private_re']
     by_uri = pd.DataFrame({'uri': p['uri'].to_numpy(), 'nw': nw, 'share': grown['public'] / nw}).set_index('uri')
@@ -368,43 +331,42 @@ def build_billionaires(lst, df, w, year, notes):
             out[c] = 0
         else:
             out[c] = ''
-    put = lambda c, v: out.__setitem__(c, v)
-    put('source', 'puf'); put('year', common.PUF_YEAR); put('filer', 1); put('stratifier', 'forbes'); put('model', 0)
-    put('weight', 1.0); put('agi_group', -1); put('q_group', -1); put('label_ok', True)
-    put('record_id', ID_BASE + u['unit_rank'].to_numpy())
-    put('scf_wave', year); put('scf_year', year - 1)
-    put('hidden_group', -1)           # Part A's group label: none (-1) on every record not rebuilt by Part A
+    out['source'], out['year'], out['filer'], out['stratifier'], out['model'] = 'puf', common.PUF_YEAR, 1, 'forbes', 0
+    out['weight'], out['agi_group'], out['q_group'], out['label_ok'] = 1.0, -1, -1, True
+    out['record_id'] = ID_BASE + u['unit_rank'].to_numpy()
+    out['scf_wave'], out['scf_year'] = year, year - 1
+    out['hidden_group'] = -1           # Part A's group label: none (-1) on every record not rebuilt by Part A
     for src in ['cex', 'cps', 'sipp']:
-        put(f'{src}_year', year)
+        out[f'{src}_year'] = year
     # people
-    put('married', u['married'].to_numpy())
-    put('n_dep', u['n_dep'].to_numpy())
-    put('filing_status', np.where(u['married'] == 1, 2, np.where(u['n_dep'] > 0, 4, 1)))
-    put('n_dep_ctc', u['n_dep'].to_numpy()); put('n_dep_eitc', 0)
+    out['married'] = u['married'].to_numpy()
+    out['n_dep'] = u['n_dep'].to_numpy()
+    out['filing_status'] = np.where(u['married'] == 1, 2, np.where(u['n_dep'] > 0, 4, 1))
+    out['n_dep_ctc'], out['n_dep_eitc'] = u['n_dep'].to_numpy(), 0
     age = u['age_used'].to_numpy()
-    put('age1', age)
-    put('age_range', np.searchsorted([26, 35, 45, 55, 65], age, side='right'))
-    put('age2', u['age2'].to_numpy())
-    put('sex_primary', u['sex'].to_numpy()); put('sex_spouse', u['sex_spouse'].to_numpy())
+    out['age1'] = age
+    out['age_range'] = np.searchsorted([26, 35, 45, 55, 65], age, side='right')
+    out['age2'] = u['age2'].to_numpy()
+    out['sex_primary'], out['sex_spouse'] = u['sex'].to_numpy(), u['sex_spouse'].to_numpy()
     for k, a in enumerate([12, 9, 6], start=1):
         has = u['n_dep'].to_numpy() >= k
-        put(f'dep_age{k}', np.where(has, a, -1))
-        put(f'ssn_status_dep{k}', np.where(has, 1, 0))
-        put(f'dep_ssn{k}', np.where(has, 1.0, np.nan))
-    put('ssn_status_primary', 1); put('ssn_status_spouse', np.where(u['married'] == 1, 1, 0))
-    put('ssn1', 1.0)
-    put('ssn2', np.where(u['married'] == 1, 1.0, np.nan))
+        out[f'dep_age{k}'] = np.where(has, a, -1)
+        out[f'ssn_status_dep{k}'] = np.where(has, 1, 0)
+        out[f'dep_ssn{k}'] = np.where(has, 1.0, np.nan)
+    out['ssn_status_primary'], out['ssn_status_spouse'] = 1, np.where(u['married'] == 1, 1, 0)
+    out['ssn1'] = 1.0
+    out['ssn2'] = np.where(u['married'] == 1, 1.0, np.nan)
     # income items
     g = mix['gains']
     for c in D.KG_PIECES:
-        put(c, kinds['gains'] * g[c])
-    put('kg_1250', np.maximum(out['kg_lt'], 0) * mix['kg_1250 per kg_lt'])
-    put('kg_collect', np.maximum(out['kg_lt'], 0) * mix['kg_collect per kg_lt'])
-    put('div_pref', kinds['dividends'] * mix['div_pref share'])
-    put('div_ord', kinds['dividends'] * (1 - mix['div_pref share']))
-    put('txbl_int', kinds['txbl_int']); put('exempt_int', kinds['exempt'])
+        out[c] = kinds['gains'] * g[c]
+    out['kg_1250'] = np.maximum(out['kg_lt'], 0) * mix['kg_1250 per kg_lt']
+    out['kg_collect'] = np.maximum(out['kg_lt'], 0) * mix['kg_collect per kg_lt']
+    out['div_pref'] = kinds['dividends'] * mix['div_pref share']
+    out['div_ord'] = kinds['dividends'] * (1 - mix['div_pref share'])
+    out['txbl_int'], out['exempt_int'] = kinds['txbl_int'], kinds['exempt']
     for c, s in mix['wages and pensions'].items():
-        put(c, kinds['wages and pensions'] * s)
+        out[c] = kinds['wages and pensions'] * s
     # the non-taxable rest of pensions is zero, so gross pensions are the taxable pensions; IRA distributions are not
     # pensions
     # business: partnership against S corporation from the IRS study (by group), Schedule C and farm from the mix
@@ -416,13 +378,13 @@ def build_billionaires(lst, df, w, year, notes):
     part_p = irs('partnership profits') / (irs('partnership profits') + irs('scorp profits'))
     part_l = irs('partnership losses') / (irs('partnership losses') + irs('scorp losses'))
     for c, s in mix['partnership profits'].items():
-        put(c, pr * (1 - cf_p) * part_p * s)
+        out[c] = pr * (1 - cf_p) * part_p * s
     for c, s in mix['scorp profits'].items():
-        put(c, pr * (1 - cf_p) * (1 - part_p) * s)
+        out[c] = pr * (1 - cf_p) * (1 - part_p) * s
     for c, s in mix['partnership losses'].items():
-        put(c, ls * (1 - cf_l) * part_l * s)
+        out[c] = ls * (1 - cf_l) * part_l * s
     for c, s in mix['scorp losses'].items():
-        put(c, ls * (1 - cf_l) * (1 - part_l) * s)
+        out[c] = ls * (1 - cf_l) * (1 - part_l) * s
     # Schedule C and farm: shared by private holdings alone, every unit would hold a small profit and loss, more
     # holders than Table 4.3's count of top-0.001% returns with a Schedule C or F profit. So in each rank group the
     # profits go to the mix group's share of units (chosen by a draw keyed by record id), shared among those by private
@@ -443,26 +405,26 @@ def build_billionaires(lst, df, w, year, notes):
             amt[h_] = total[m_].sum() * privk[h_] / privk[h_].sum()
         cf_amount[side] = amt
     for c in ['sole_prop', 'farm']:
-        put(c, cf_amount['profits'] * mix['schedule C and farm profits'][c]
-            - cf_amount['losses'] * mix['schedule C and farm losses'][c])
-    put('rent', kinds['rent profits']); put('rent_loss', -kinds['rent losses'])
-    put('estate', np.maximum(kinds['estate'], 0)); put('estate_loss', np.maximum(-kinds['estate'], 0))
+        out[c] = (cf_amount['profits'] * mix['schedule C and farm profits'][c]
+                  - cf_amount['losses'] * mix['schedule C and farm losses'][c])
+    out['rent'], out['rent_loss'] = kinds['rent profits'], -kinds['rent losses']
+    out['estate'], out['estate_loss'] = np.maximum(kinds['estate'], 0), np.maximum(-kinds['estate'], 0)
     for c, s in mix['other income'].items():
-        put(c, kinds['other income'] * s)
+        out[c] = kinds['other income'] * s
     assert (out['rent_loss'] >= 0).all()
     # the computed business total, as drawn (no draw here)
     parts = D.META['computed_totals']['business_income']
-    put('business_income_drawn', D.signed_sum(out, parts))
+    out['business_income_drawn'] = D.signed_sum(out, parts)
     # charity
     rate = np.where(grp == 'top', float(S['gift_rate_top']), float(S['gift_rate_rest']))
     gifts = rate * u['net_worth'].to_numpy(float)
-    put('char_cash', gifts * mix['char_cash share']); put('char_noncash', gifts * (1 - mix['char_cash share']))
+    out['char_cash'], out['char_noncash'] = gifts * mix['char_cash share'], gifts * (1 - mix['char_cash share'])
     # the balance sheet and basis as accumulated gains
-    put('value.equities', u['public'].to_numpy(float)); put('value.pass_throughs', u['private_pt'].to_numpy(float))
-    put('value.re_fund', u['private_re'].to_numpy(float))
-    put('w_kg_other', u['gain_public'].to_numpy(float)); put('w_kg_pass_throughs', u['gain_private_pt'].to_numpy(float))
-    put('w_kg_other_re', u['gain_private_re'].to_numpy(float))
-    put('owns_business', (u['private_pt'] > 0).astype(int).to_numpy())
+    out['value.equities'], out['value.pass_throughs'] = u['public'].to_numpy(float), u['private_pt'].to_numpy(float)
+    out['value.re_fund'] = u['private_re'].to_numpy(float)
+    out['w_kg_other'], out['w_kg_pass_throughs'] = u['gain_public'].to_numpy(float), u['gain_private_pt'].to_numpy(float)
+    out['w_kg_other_re'] = u['gain_private_re'].to_numpy(float)
+    out['owns_business'] = (u['private_pt'] > 0).astype(int).to_numpy()
     # QBI groups: an industry where the group has income, workers per dollar of its profits
     kp = {'cf': np.maximum(out['sole_prop'] + out['farm'], 0),
           'ps': out['part_passive'] + out['part_active'] + out['scorp_passive'] + out['scorp_active']}
@@ -470,26 +432,26 @@ def build_billionaires(lst, df, w, year, notes):
             'ps': (out[['part_passive', 'part_active', 'part_passive_loss', 'part_active_loss', 'part_179',
                         'scorp_passive', 'scorp_active', 'scorp_passive_loss', 'scorp_active_loss', 'scorp_179']] != 0).any(axis=1)}
     for k in kp:
-        put(f'biz_industry_{k}', np.where(anyk[k], mix['industry'][k], 0))
-        put(f'biz_workers_{k}', np.where(anyk[k], kp[k] * mix['workers per dollar'][k], 0.0))
-    put('k1_owner', anyk['ps'].astype(int).to_numpy())
+        out[f'biz_industry_{k}'] = np.where(anyk[k], mix['industry'][k], 0)
+        out[f'biz_workers_{k}'] = np.where(anyk[k], kp[k] * mix['workers per dollar'][k], 0.0)
+    out['k1_owner'] = anyk['ps'].astype(int).to_numpy()
     # consumption and work
     for c, v in mix['consumption'].items():
-        put(c, v)
+        out[c] = v
     wages_pos = out['wages'].to_numpy(float) > 0
-    put('weeks_primary', np.where(wages_pos, mix['weeks_primary'], 0.0))
-    put('hours_primary', np.where(wages_pos, mix['hours_primary'], 0.0))
+    out['weeks_primary'] = np.where(wages_pos, mix['weeks_primary'], 0.0)
+    out['hours_primary'] = np.where(wages_pos, mix['hours_primary'], 0.0)
     # the totals, from the parts (start.recombine), then the items at a ratio to AGI before them
     from scale import start as START
     out, _ = START.recombine(out, year)
     agi0 = np.maximum(D.agi(out), 0)
     for c, r in mix['ratio to AGI'].items():
-        put(c, agi0 * r)
+        out[c] = agi0 * r
     out, _ = START.recombine(out, year)
     # flags
-    put('billionaire', 1)
-    put('billionaire_rank', u['unit_rank'].to_numpy())
-    put('forbes_uri', u['unit_uri'].to_numpy())
+    out['billionaire'] = 1
+    out['billionaire_rank'] = u['unit_rank'].to_numpy()
+    out['forbes_uri'] = u['unit_uri'].to_numpy()
     # checks: nothing missing that the file never has missing; dtypes as the file's
     for c in df.columns:
         may_be_missing = c.startswith('u_') or bool(df[c].isna().any())
@@ -519,13 +481,13 @@ def offset_factors(models):
 
 def balance_sheet_dollars(rows, maps, salt):
     """The balance sheet in target-year dollars from rows' SCF bands: each amount from the map of the row's wave, with
-    a pick keyed by record id and salt plus the amount's position (salt may be one number per row); then the items made
-    from a share, and net worth."""
+    a pick keyed by record id and salt (one number per row) plus the amount's position; then the items made from a
+    share, and net worth."""
     from shared import ages
     out = pd.DataFrame(index=rows.index)
-    salt = np.asarray(salt, dtype=np.uint64) if np.ndim(salt) else int(salt)
+    salt = np.asarray(salt, dtype=np.uint64)
     for i, v in enumerate(D.META['scf_amounts']):
-        u = ages.uniform_by_id(rows['record_id'].to_numpy(), salt + np.uint64(i) if np.ndim(salt) else salt + i)
+        u = ages.uniform_by_id(rows['record_id'].to_numpy(), salt + np.uint64(i))
         out[v] = D.draw_by_wave(rows, v, maps, None, u)
     for slot, (item, base) in D.RATIOS.items():
         if slot in out and base in out:
@@ -605,6 +567,26 @@ def redraw_records(network, factors, coded, label_idx, year_idx, scf_year_idx, w
             dd.iloc[at].reset_index(drop=True), nw, kept, ok)
 
 
+def redraw_many(models, factors, r, coded, label_idx, year_idx, maps, ceiling, tries, seed, salt, device):
+    """redraw_records on the records r (columns record_id, scf_wave, scf_year, model), each by the model that drew it.
+    factors: each model's offset factors by training seed. Returns the kept tries' SCF slots and dollars (frames in r's
+    order), every try's net worth [records, tries], the try kept and whether any try was below the ceiling."""
+    from pretrain import model as M
+    rids, waves, model_of = r['record_id'].to_numpy().astype(np.int64), r['scf_wave'].to_numpy(), r['model'].to_numpy()
+    scf_year_idx = r['scf_year'].map(M.YEARS.index).to_numpy()
+    nw, kept, ok, bands, dol = np.zeros((len(r), tries)), np.zeros(len(r), int), np.zeros(len(r), bool), [], []
+    for mod in models:
+        m = np.flatnonzero(model_of == mod['seed'])
+        if not len(m):
+            continue
+        got, dd, nw[m], kept[m], ok[m] = redraw_records(
+            mod['network'], factors[mod['seed']], coded[m], label_idx[m], year_idx[m], scf_year_idx[m], waves[m], rids[m],
+            maps, ceiling, tries, seed, salt, device)
+        bands.append(got.set_index(m))
+        dol.append(dd.set_index(m))
+    return pd.concat(bands).sort_index(), pd.concat(dol).sort_index(), nw, kept, ok
+
+
 SCF_MADE = ['net_worth', 'value.primary_mortgage', 'w_dc_stocks', 'elective1', 'elective2', 'trad_contr_er1',
             'trad_contr_er2', 'trad_deferrals', 'medicare_wages']   # made from the SCF amounts (draw_dollars)
 
@@ -629,23 +611,12 @@ def redraw_balance_sheets(df, raw, year, ceiling, notes):
     models = G.load_models(device)
     factors, fnote = offset_factors(models)
     maps = D.load_maps(year)
-    P = M.PREDICTED
     scf_cols = [M.column(x) for x in G.SCF_SLOTS]
     r = raw.iloc[todo].reset_index(drop=True)
     rids = r['record_id'].to_numpy().astype(np.int64)
-    coded = np.column_stack([r[M.column(x)].to_numpy().astype(np.int64) for x in P])
-    label_idx, year_idx = r['source'].map(M.SOURCES.index).to_numpy(), r['year'].map(M.YEARS.index).to_numpy()
-    scf_year_idx, waves, model_of = r['scf_year'].map(M.YEARS.index).to_numpy(), r['scf_wave'].to_numpy(), r['model'].to_numpy()
-    nw_tries, kept, ok, bands = np.zeros((len(r), tries)), np.zeros(len(r), int), np.zeros(len(r), bool), []
-    for mod in models:
-        m = np.flatnonzero(model_of == mod['seed'])
-        if not len(m):
-            continue
-        got, _, nw_tries[m], kept[m], ok[m] = redraw_records(
-            mod['network'], factors[mod['seed']], coded[m], label_idx[m], year_idx[m], scf_year_idx[m], waves[m], rids[m],
-            maps, ceiling, tries, seed, salt, device)
-        bands.append(got.set_index(m))
-    bands = pd.concat(bands).sort_index()
+    coded = np.column_stack([r[M.column(x)].to_numpy().astype(np.int64) for x in M.PREDICTED])
+    bands, _, nw_tries, kept, ok = redraw_many(models, factors, r, coded, r['source'].map(M.SOURCES.index).to_numpy(),
+                                               r['year'].map(M.YEARS.index).to_numpy(), maps, ceiling, tries, seed, salt, device)
     for c in scf_cols:
         r[c] = bands[c].to_numpy()
     picks = {c: u for c, u in kept_picks(rids, kept, salt).items() if c in r}

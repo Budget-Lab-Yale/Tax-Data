@@ -14,6 +14,7 @@ import pandas as pd
 import torch
 
 from shared import common
+from shared.ages import uniform_by_id
 from pretrain import model as M
 from pretrain import qgroups as Q
 from prep import soi as TG
@@ -81,6 +82,9 @@ RULE_HOLDINGS = [slots_of(r['then_at_least_one_nonzero']) for r in RULES]
 RULED = sorted({v for r in RULES for v in r['then_at_least_one_nonzero']}, key=P.index)   # the offset's holdings
 DEPENDENT_RANGES = torch.tensor(common.DEPENDENT_RANGES)
 SURVEY_ONLY = slots_of(AGE_SLOTS + SCF_SLOTS + CEX_SLOTS + CPS_SLOTS + SIPP_SLOTS)
+CPS_VIEW = slots_of(AGE_SLOTS + CPS_SLOTS + [r for r in M.REPORTED if 'cps' in M.PRESENT_ON[r]])   # present on a CPS row
+TOTALS = slots_of(list(COMPUTED) + list(FLAGS))
+GATED_SLOTS = torch.tensor(list(GATED), dtype=torch.long)
 POINTS = 32
 TYPE_SLOTS = M.TYPE_SLOTS                  # drawn first, in a random order per record
 STATUS_SLOTS = list(M.TAX_STATUS)          # then these, in this order (mars, n_dep_ctc, n_dep_eitc)
@@ -498,15 +502,11 @@ class Chunk:
         self.values[:, 0] = M.SOURCES.index(label)
         self.values[:, 1] = M.YEARS.index(common.PUF_YEAR if year is None else year)
         self.values[self.rows[:, None], NC + order] = 0              # present, not yet drawn
-        for v in AGE_SLOTS + SCF_SLOTS + CEX_SLOTS + CPS_SLOTS + SIPP_SLOTS:
-            self.values[:, NC + P.index(v)] = -1                      # absent until their turn
+        self.values[:, NC + SURVEY_ONLY.to(device)] = -1             # absent until their turn
         if label == 'cps':        # the CPS's own and reported slots: present and hidden, as on a CPS training row
-            for v in AGE_SLOTS + CPS_SLOTS + [r for r in M.REPORTED if 'cps' in M.PRESENT_ON[r]]:
-                self.values[:, NC + P.index(v)] = 0
-        for j in GATED:           # a share is absent until married and its bases are drawn (gate_shares, after_totals)
-            self.values[:, NC + j] = -1
-        for tot in list(COMPUTED) + list(FLAGS):
-            self.values[:, NC + P.index(tot)] = 0                    # present and hidden until computed
+            self.values[:, NC + CPS_VIEW.to(device)] = 0
+        self.values[:, NC + GATED_SLOTS.to(device)] = -1             # a share is absent until married and its bases are drawn (gate_shares, after_totals)
+        self.values[:, NC + TOTALS.to(device)] = 0                   # present and hidden until computed
         self.filled = torch.zeros(size, len(P), dtype=torch.bool, device=device)
         for var, bands in preset.items():
             self.values[:, NC + P.index(var)] = bands[start:start + size].to(device)
@@ -636,8 +636,7 @@ class Chunk:
         dep = dependent(v)
         for r in range(len(RULES)):
             self.triggered[:, r] = (v[:, NC + RULE_ITEMS[r].to(v.device)] != 0).any(1) & ~dep
-        for s in AGE_SLOTS + SCF_SLOTS + CEX_SLOTS + CPS_SLOTS + SIPP_SLOTS:
-            v[:, NC + P.index(s)] = 0                                # each survey's view leaves out the others'
+        v[:, NC + SURVEY_ONLY.to(v.device)] = 0                      # each survey's view leaves out the others'
         v[:, NC + REP_SLOTS.to(v.device)] = 0                        # reported slots: present, never drawn (hidden)
         married = v[:, NC + P.index('married')] == 1
         self.not_asked = {}                                         # the shares' records with no question
@@ -647,8 +646,7 @@ class Chunk:
                 some |= v[:, NC + b] > 0
             self.not_asked[j] = (~married | ~some | dep) & ~self.filled[:, j]   # a preset share stands
             v[~self.not_asked[j] & ~self.filled[:, j], NC + j] = 0   # asked, not yet drawn: present and hidden
-        for j, m in self.not_asked.items():
-            v[m, NC + j] = -1
+            v[self.not_asked[j], NC + j] = -1
         return {r['name']: int(self.triggered[:, k].sum()) for k, r in enumerate(RULES)}
 
     def survey_step(self, slot, label, year=None, groups=None):
@@ -762,7 +760,6 @@ def generate(model, n, seed, preset=None, factors=None, chunk=50_000, label='puf
     n_own = len(first) + len(then) + len(rest)
     # the late slots; a gated share preset on some records only is drawn here for the others
     late = slots_of([v for v in LATE_SLOTS if v not in preset or P.index(v) in GATED])
-    n_late, n_age, n_scf, n_cex, n_cps = len(late), len(AGE_SLOTS), len(SCF_SLOTS), len(CEX_SLOTS), len(CPS_SLOTS)
     rule_counts = {r['name']: 0 for r in RULES}
 
     def orders(size):
@@ -775,25 +772,17 @@ def generate(model, n, seed, preset=None, factors=None, chunk=50_000, label='puf
                           shuffled(slots_of(SIPP_TIPS)), shuffled(slots_of(SIPP_FLAGS))], 1).to(device)
 
     def finish(d, order):
-        """The late slots and every survey phase, on a chunk whose own items and totals are drawn."""
+        """The late slots and every survey phase, on a chunk whose own items and totals are drawn: the self-employment
+        share and the earnings split code under the batch's label, the exact ages under the CPS label, then each
+        survey's slots under its label, at the record's year of that survey (the SCF at its wave's income year)."""
         k = n_own
-        for step in range(k, k + n_late):      # the self-employment share and the earnings split code
-            d.survey_step(order[:, step], d.label)
-        k += n_late
-        for step in range(k, k + n_age):
-            d.survey_step(order[:, step], 'cps', d.survey_year['cps'])
-        k += n_age
-        for step in range(k, k + n_scf):       # each record at its own wave's income year
-            d.survey_step(order[:, step], 'scf', d.scf_year)
-        k += n_scf
-        for step in range(k, k + n_cex):
-            d.survey_step(order[:, step], 'cex', d.survey_year['cex'])
-        k += n_cex
-        for step in range(k, k + n_cps):
-            d.survey_step(order[:, step], 'cps', d.survey_year['cps'])
-        k += n_cps
-        for step in range(k, order.shape[1]):
-            d.survey_step(order[:, step], 'sipp', d.survey_year['sipp'])
+        for count, label, year in [(len(late), d.label, None), (len(AGE_SLOTS), 'cps', d.survey_year['cps']),
+                                   (len(SCF_SLOTS), 'scf', d.scf_year), (len(CEX_SLOTS), 'cex', d.survey_year['cex']),
+                                   (len(CPS_SLOTS), 'cps', d.survey_year['cps']), (len(SIPP_SLOTS), 'sipp', d.survey_year['sipp'])]:
+            for step in range(k, k + count):
+                d.survey_step(order[:, step], label, year)
+            k += count
+        assert k == order.shape[1]
         d.finish()
         return d.values.cpu(), d.own_chance.cpu(), d.forced.cpu()
 
@@ -895,12 +884,6 @@ def own_items():
     return [v for v in D.ORDER if v in set(BT.PUF_AMOUNTS)]
 
 
-def preset_slots():
-    """The slots a real PUF record presets: its own items, the computed totals and the computed flag (not the filing
-    flag, which generate sets)."""
-    return [v for v in PUF_SLOTS if v != 'filer'] + list(COMPUTED) + list(FLAGS)
-
-
 def real_puf_records():
     """The 2015 PUF's records with their bands, own 2015 amounts and weights. 'ord' holds the training table's PUF
     rows; 'agg' the four aggregate records, translated from the raw fields as Part A reads them and banded on the 2015
@@ -911,7 +894,7 @@ def real_puf_records():
     from shared import dollars as D
     from generate import top_hidden as TH
     own = own_items()
-    slots = preset_slots()
+    slots = [v for v in PUF_SLOTS if v != 'filer'] + list(COMPUTED) + list(FLAGS)   # preset: not the filing flag, which generate sets
     cols = list(dict.fromkeys(['source', 'record_id', 'weight', 'age_range'] + M.AGE_PROBS + M.ES_PROBS
                               + [M.column(v) for v in slots] + own))
     t = pd.read_parquet(common.TABLE, columns=cols)
@@ -929,7 +912,7 @@ def real_puf_records():
         none = o['earn_split'].to_numpy() < 0
         assert np.allclose(o.loc[none, M.ES_PROBS].sum(1), 1), 'earn_split: a PUF row with no code and no probabilities'
     o = o.rename(columns={v: D.OWN + v for v in own})
-    agg_raw, _ = TH.read_raw()
+    agg_raw = TH.read_raw()
     # alimony received and paid (E00800, E03500) are blank on the four records (suppressed): read as zero, so each
     # record's AGI is still its E00100
     sup = list(TH.SUPPRESSED_FIELDS)
@@ -962,31 +945,31 @@ def real_puf_records():
     return _REAL
 
 
+def drawn_from_probs(o, column, probs, salt):
+    """The column's values on the real PUF rows o, with a value drawn from the row's probabilities (columns probs) where
+    the PUF has none (-1); one draw per record and copy, keyed by record id. Returns the values and the rows drawn."""
+    x = o[column].to_numpy().astype(np.int64)
+    miss = x < 0
+    u = uniform_by_id(o.loc[miss, 'record_id'].to_numpy(), salt)
+    cp = np.cumsum(o.loc[miss, probs].to_numpy(float), 1)
+    x[miss] = np.minimum((cp < u[:, None]).sum(1), len(probs) - 1)
+    return x, miss
+
+
 def real_puf_part(model, mod, k, n_models, fac):
     """Model k's (of n_models) copy of the real PUF: the ordinary records with every PUF slot preset (a missing age
     range drawn once per record and copy from its probabilities), and the four aggregate records with their amounts
     preset and their filing status, dependents and adult age range drawn; then every survey item drawn given the
     record. Weight: the PUF weight over n_models. Returns the part, the label check's table and the rule counts."""
     from shared import dollars as D
-    from shared.ages import uniform_by_id
     R = real_puf_records()
     o, a, own, slots = R['ord'], R['agg'], R['own'], R['slots']
     seed = int(G['label_seed']) + mod['seed_shift'] + REAL_SEED_SHIFT
-    rng = o['age_range'].to_numpy().astype(np.int64)
-    miss = rng < 0
-    u = uniform_by_id(o.loc[miss, 'record_id'].to_numpy(), REAL_AGE_SALT + k)
-    cp = np.cumsum(o.loc[miss, M.AGE_PROBS].to_numpy(float), 1)
-    rng[miss] = np.minimum((cp < u[:, None]).sum(1), common.N_RANGES - 1)
-    preset = {v: torch.as_tensor(o[M.column(v)].to_numpy().astype(np.int64)) for v in slots if v != 'age_range'}
-    preset['age_range'] = torch.as_tensor(rng)
-    # the earnings split code where the PUF has none (joint returns with no demographics): one draw per record and
-    # copy from its probabilities
-    es = o['earn_split'].to_numpy().astype(np.int64)
-    es_miss = es < 0
-    ue = uniform_by_id(o.loc[es_miss, 'record_id'].to_numpy(), REAL_EARN_SPLIT_SALT + k)
-    ce = np.cumsum(o.loc[es_miss, M.ES_PROBS].to_numpy(float), 1)
-    es[es_miss] = np.minimum((ce < ue[:, None]).sum(1), len(M.ES_PROBS) - 1)
-    preset['earn_split'] = torch.as_tensor(es)
+    preset = {v: torch.as_tensor(o[M.column(v)].to_numpy().astype(np.int64)) for v in slots}
+    # the age range, and the earnings split code on joint returns with no demographics, where the PUF has none
+    rng, miss = drawn_from_probs(o, 'age_range', M.AGE_PROBS, REAL_AGE_SALT + k)
+    es, es_miss = drawn_from_probs(o, 'earn_split', M.ES_PROBS, REAL_EARN_SPLIT_SALT + k)
+    preset['age_range'], preset['earn_split'] = torch.as_tensor(rng), torch.as_tensor(es)
     common.say(f"{mod['run']}: real PUF copy {k + 1}: earnings split code drawn from its probabilities on "
                f"{int(es_miss.sum()):,} joint returns with no demographics (codes {np.bincount(es[es_miss], minlength=len(M.ES_PROBS)).tolist()})")
     part, counts = generate(model, len(o), seed, preset=preset, factors=fac, totals_preset=True)
@@ -994,7 +977,6 @@ def real_puf_part(model, mod, k, n_models, fac):
         c = M.column(v)
         on = preset[v].numpy() >= 0 if P.index(v) in GATED else np.ones(len(part), bool)   # -1: drawn
         assert np.array_equal(part[c].to_numpy()[on], preset[v].numpy()[on]), f'real PUF: the draw moved {c}'
-    for v in slots:
         if P.index(v) in GATED:
             n_drawn = int((preset[v].numpy() < 0).sum())
             n_set = int((part[M.column(v)].to_numpy()[preset[v].numpy() < 0] > 0).sum())
@@ -1076,6 +1058,7 @@ def build_stack(models, factors):
     stacked; how many records each rule applied to; and the label check per model and group. factors: {model run: its
     offset factors}."""
     n_nf = nonfiler_records()
+    nf_years = nonfiler_years()
     rule_counts = {r['name']: 0 for r in RULES}
     stacks, checks = [], []
     for k, (mod, n_nf_k) in enumerate(zip(models, equal_shares(n_nf, len(models)))):
@@ -1090,7 +1073,6 @@ def build_stack(models, factors):
         rule_counts = {r: rule_counts[r] + counts[r] for r in rule_counts}
         common.say(f"{mod['run']}: filers done")
         nf_parts, counts = [], {r: 0 for r in rule_counts}
-        nf_years = nonfiler_years()
         sizes = [int(round(n_nf_k * s)) for _, s in nf_years]
         sizes[-1] = n_nf_k - sum(sizes[:-1])
         for j, ((ny, _), size) in enumerate(zip(nf_years, sizes)):

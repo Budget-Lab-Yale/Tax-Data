@@ -87,6 +87,7 @@ GROWTH_COLUMN = {'amt_nols_drawn': 'amt_nols'}   # file column: the column the p
 
 
 def apply(v, p, n):
+    """v with its positive values times p and its negative values times n."""
     v = np.asarray(v, float)
     return np.where(v > 0, v * p, np.where(v < 0, v * n, v))
 
@@ -210,9 +211,11 @@ def build():
     rid = F['record_id'].to_numpy(np.int64)
     n_copies = len(G.MODELS)
     is_real = lambda i: (i >= G.REAL_ID) & (i < G.REAL_ID + n_copies * G.REAL_COPY_BLOCK)   # the Forbes list from 95e6
+    recid_of = lambda i: (i - G.REAL_ID) % G.REAL_COPY_BLOCK                                  # a real record's PUF RECID
     real = is_real(rid)
+    agg = recid_of(rid[real]) >= 999996
     Fr = F.loc[real].reset_index(drop=True)
-    recid = (rid[real] - G.REAL_ID) % G.REAL_COPY_BLOCK
+    recid = recid_of(rid[real])
     copy = (rid[real] - G.REAL_ID) // G.REAL_COPY_BLOCK + 1
     say(f'{len(F):,} live records: {int(real.sum()):,} PUF record copies ({len(np.unique(recid)):,} PUF records), '
         f'{int((~real).sum()):,} other records; {int((~live).sum()):,} records of weight 0 left out, as the '
@@ -220,7 +223,6 @@ def build():
 
     # ---- the definitions (spec), and the 2015 items from the raw PUF by the merge's own function ----------------
     lim = common.SETTINGS['deferrals']['limits'][str(Y)]
-    D_meta = D.META
     ratio_items_made = [item for slot, (item, base) in D.RATIOS.items()
                         if item not in ('value.primary_mortgage', 'w_dc_stocks')]   # those two are balance sheet values
     spec = {
@@ -230,7 +232,7 @@ def build():
         'items': {'parts': BT.PARTS, 'sche_parts': BT.SCHE_PARTS, 'adj_parts': BT.ADJ_PARTS, 'adj_fields': BT.ADJ_FIELDS,
                   'new_items': BT.NEW_ITEMS, 'agi_item_signs': {v: s for v, (s, _, _) in BT.ITEMS.items() if s != 0},
                   'suppressed_on_aggregate_records': ['E00800', 'E03500']},
-        'derive': {'computed_totals': D_meta['computed_totals'], 'k1_parts': BT.K1_PARTS, 'agi_fold': D.FOLD,
+        'derive': {'computed_totals': D.META['computed_totals'], 'k1_parts': BT.K1_PARTS, 'agi_fold': D.FOLD,
                    'pension_parts': common.PENSION_PARTS,
                    'social_security': {'single': common.SS_BRACKETS['single'], 'joint': common.SS_BRACKETS['joint'],
                                        'rates': common.SS_RATES, 'magi_rate': common.SS_MAGI_RATE},
@@ -250,20 +252,18 @@ def build():
     assert not missing, f'factor columns not in the file: {missing}'
 
     # ---- the factors, step by step, each step checked against the files -----------------------------------------
-    by_id = lambda frame: frame.set_index('record_id')
     rep = repealed()
     zeroed = set()       # repealed items already set to zero by a step
     prev = {}
     steps = []           # rows: column, puf_item, step, what, positive, negative
     checks = []          # rows: step, column, records checked, records that differ
     for k, (y, folder) in enumerate(links):
-        fy = by_id(read_file(f'{folder}/file_{y}.parquet', ['record_id'] + list(cols)))
+        fy = read_file(f'{folder}/file_{y}.parquet', ['record_id'] + list(cols)).set_index('record_id')
         fy = fy.loc[is_real(fy.index.to_numpy(np.int64))]
         ids = fy.index.to_numpy(np.int64)
         if k == 0:
-            rr = (ids - G.REAL_ID) % G.REAL_COPY_BLOCK
-            assert np.isin(rr, x15.index).all(), 'a PUF record copy whose RECID is not in the PUF'
-            x0 = x15.loc[rr]
+            assert np.isin(recid_of(ids), x15.index).all(), 'a PUF record copy whose RECID is not in the PUF'
+            x0 = x15.loc[recid_of(ids)]
             sa = {}
             sa_path = f'{folder}/taxes/schedule_a_factors.csv'
             if os.path.exists(sa_path):
@@ -350,7 +350,6 @@ def build():
     pos = refG > 0
     mult[pos], n_mult_inexact = exact_factor(refG[pos], refY[pos])
     mult = np.clip(mult, 0.0, 1.0)
-    agg = recid >= 999996
     rec = pd.DataFrame({'RECID': recid, 'copy': copy, 'row': np.flatnonzero(real), 'weight_factor': wf,
                         'medical_floor': floor_by.loc[recid].to_numpy(), 'state_ref_multiplier': mult})
     cats = ['filing_status', 'married', 'n_dep', 'n_dep_ctc', 'n_dep_eitc']
@@ -361,7 +360,7 @@ def build():
         rec[c] = np.where(agg, Fr[c].to_numpy(), -1).astype(np.int64)
 
     # ---- the Tax-Simulator columns: the merge's own, a formula, a constant, or shipped ----------------------------
-    derived = ['capital_gains', 'capital_gains_line13', *D_meta['computed_totals'], 'k1_owner', 'gross_pens_dist',
+    derived = ['capital_gains', 'capital_gains_line13', *D.META['computed_totals'], 'k1_owner', 'gross_pens_dist',
                'ss_taxable', 'other_agi', *ratio_items_made, *D.REMAINDERS, *[i for i, *_ in D.PERSON_CAPS.values()],
                *D.SUMS, *D.FLAGS_WITH, 'elective1', 'elective2', 'trad_contr_er1', 'trad_contr_er2', 'trad_deferrals',
                'medicare_wages']
@@ -420,7 +419,7 @@ def build():
                  'state_ref_multiplier': ('records.parquet column state_ref_multiplier: the grown taxable state refund '
                                           'times it is the year\'s refund (0 removed, 1 kept whole, between where the '
                                           'tax benefit rule keeps part); the merge only multiplies'),
-                 'repealed': {c: {'from': y, 'step': f'{REPEAL_STEP} {y}'} for c, y in repealed().items() if c in zeroed},
+                 'repealed': {c: {'from': y, 'step': f'{REPEAL_STEP} {y}'} for c, y in rep.items() if c in zeroed},
                  'not_shipped': {c: (f'{w}: the file\'s value is the tax calculator\'s and no Tax-Simulator column '
                                      'holds it; the recipient\'s calculator computes it from the other items. Its '
                                      'factor rows are the plain growth, so the working frame carries the PUF\'s own '
@@ -468,7 +467,7 @@ def build():
                'other records': int((~real).sum()), 'factor rows': len(fac), 'weight factors not exact': n_inexact,
                'refunds removed (record copies)': removed, 'refunds kept in part (record copies)': part,
                'refund multipliers whose product is not exactly the file\'s refund': n_mult_inexact,
-               'repealed adjustments (a factor of zero)': {c: y for c, y in repealed().items() if c in zeroed},
+               'repealed adjustments (a factor of zero)': {c: y for c, y in rep.items() if c in zeroed},
                'not shipped': list(NOT_SHIPPED),
                'AMT adjustments held to the loss (record copies)': capped,
                'Tax-Simulator columns by rule': how, 'shipped': shipped, 'imputed items': len(imputed)}
@@ -501,7 +500,6 @@ def check_r():
     rt.to_csv(f'{SUMMARY}/roundtrip_{common.RUN}_r.csv', index=False)
     os.remove(path)
     readme = f'{PKG}/README.md'
-    diff = rt[rt['records that differ'] > 0]
     text = open(readme).read().replace('R_ROUNDTRIP', roundtrip_sentence(rt))
     open(readme, 'w').write(text)
     chmod_private(PKG)
