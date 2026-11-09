@@ -1,5 +1,4 @@
-"""SOI's November filing-season tables, read into one file (plan of 4 November 2026, step 1: scratch
-explore/2026-11-04/nowcast/PLAN.md). Run again when SOI posts a new November table:
+"""SOI's November filing-season tables, read into one file. Run again when SOI posts a new November table:
 
     python research/rebuild/pipeline/run.py stage <folder> filing_season      (no GPU needed)
 
@@ -18,7 +17,7 @@ They come in two layouts:
 Tax year 2017 has both. There is no November table for tax years 2019 and 2020 (SOI posted a table to the end of
 December for 2019 and none after July for 2020).
 
-The files are in research/rebuild/resources/filing_season/raw/ (downloaded 4 November 2026). This writes, in
+The files are in research/rebuild/resources/filing_season/raw/. This writes, in
 research/rebuild/resources/filing_season/:
   - november_tables.csv: one row per tax year, table layout, line, statistic and AGI class: tax_year, filing_year,
     source_file, layout, cutoff (the processing date in the title), line (the table's own label), item (the

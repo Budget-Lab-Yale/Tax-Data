@@ -11,9 +11,9 @@ says, for every table, where its numbers come from and how they were turned into
     2026 (settings paths.raw.z1);
   - the Census Bureau's population estimates by single year of age and sex (settings paths.raw.census_pep);
   - SOI's Publication 4801 line items (settings paths.raw.soi_mirror, line_items.csv);
-  - SOI's Publication 4801 blind boxes, typed in from the pages (since 29 October);
-  - the 2015 PUF: the share of primary filers who are blind, by age range, where the return shows it (since the second
-    retrain of 29 October; the blindness rule in non_micro_imputations reads it);
+  - SOI's Publication 4801 blind boxes, typed in from the pages;
+  - the 2015 PUF: the share of primary filers who are blind, by age range, where the return shows it (the blindness
+    rule in non_micro_imputations reads it);
   - the law: the dependent filing threshold (Form 1040 instructions, Chart B, as production's
     src/nonfilers/asec_tax_units.R has it) and the child tax credit's age limit (IRC section 24(c)).
 """
@@ -215,11 +215,11 @@ def soi_children():
          'claiming the additional child tax credit, so a lower bound on all the credit\'s children')
 
 
-# ---- the CPS: average pay of private employees by SCF industry group (29 October, the QBI wage bills) ----------
+# ---- blindness --------------------------------------------------------------------------------------------------
 def pub4801_blind():
     """The age and blindness boxes checked on all individual returns, and the returns taking the standard deduction,
-    SOI Publication 4801 (line item estimates), read off the publication's pages (29 October; scratch
-    explore/2026-10-29/retrain/p4801/): 2015 and 2017 the all-forms total of Form 1040 line 39a and Form 1040A line 23a
+    SOI Publication 4801 (line item estimates), read off the publication's pages:
+    2015 and 2017 the all-forms total of Form 1040 line 39a and Form 1040A line 23a
     (1040EZ has no boxes); 2018 and 2019 Form 1040 page 1 (the age and blindness boxes) and the summary table's basic
     standard deduction."""
     rows = [(2015, 24362239, 256557, 10153231, 81906, 103844288), (2017, 25924675, 260535, 10959898, 83983, 104013115),
@@ -229,12 +229,12 @@ def pub4801_blind():
     note('pub4801_blind_boxes.csv', 'SOI Publication 4801, line item estimates, all returns: 2015 and 2017 Form 1040 '
          'line 39a plus Form 1040A line 23a (the printed all-forms total); 2018 and 2019 Form 1040 page 1; the basic '
          'standard deduction returns from the all-forms page (2015, 2017) or the summary table (2018, 2019)',
-         'typed in from the pages (scratch explore/2026-10-29/retrain/p4801/), 2015 and 2017-2019')
+         'typed in from the pages, 2015 and 2017-2019')
 
 
 def puf_blindness(puf, age_range):
     """The primary filer's blindness on each PUF record, where the return shows it: 1 blind, 0 not blind, -1 not
-    known (moved here from build_table.py, where it made the training table's blindness slot of 29 October). Shown
+    known. Shown
     only on unmarried returns taking the standard deduction (filing status single or head of household, FDED 2), not
     dependent filers (DSI 1, whose deduction is limited), with an age range: there the deduction above the basic amount,
     in units of the additional amount (settings blindness: $1,550 in 2015), is the number of extra boxes; the boxes are
@@ -299,7 +299,7 @@ def puf_blind_rates():
 TABLES = [dependent_threshold, ctc_age_limit, life_table, chetty_ratio, johnson, census_population, z1_rates, copies,
           soi_children, pub4801_blind, puf_blind_rates]
 
-HAND_BUILT = ['irs_wages_by_business_type.csv']   # (6 November) by build_irs_wages.py in this folder, from SOI's downloads
+HAND_BUILT = ['irs_wages_by_business_type.csv']   # by build_irs_wages.py (this folder), from SOI's downloads
 
 
 def main(names=None):
@@ -314,9 +314,11 @@ def main(names=None):
     path = os.path.join(OUTDIR, 'sources.csv')
     if os.path.exists(path):
         old = pd.read_csv(path)
-        # a run of some tables keeps every other table's row; a full run still keeps the table built by hand
-        keep = ~old['table'].isin(src['table']) if names else old['table'].isin(HAND_BUILT)
-        src = pd.concat([old[keep], src], ignore_index=True)
+        # a run of some tables keeps every other table's row; a full run keeps the hand-built table's row, last
+        if names:
+            src = pd.concat([old[~old['table'].isin(src['table'])], src], ignore_index=True)
+        else:
+            src = pd.concat([src, old[old['table'].isin(HAND_BUILT)]], ignore_index=True)
     src.to_csv(path, index=False)
     common.say(f'wrote {len(SOURCES)} tables and sources.csv to {OUTDIR}')
 

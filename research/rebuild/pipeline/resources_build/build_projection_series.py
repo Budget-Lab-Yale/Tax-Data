@@ -1,7 +1,7 @@
-"""Builds the series the years after the last SOI tables are grown and targeted by (30 October 2026, targets for every
-year, piece 4 of the overnight plan). Usage, through Slurm, with every input passed as an argument:
+"""Builds the series the years after the last SOI tables are grown and targeted by. Usage, through Slurm, a plain
+script with every input passed as an argument:
 
-    python -I build_projection_series.py <Z.1 csv zip> <Macro-Projections folder> <CBO details csv> <out folder>
+    python -I research/rebuild/pipeline/resources_build/build_projection_series.py <Z.1 csv zip> <Macro-Projections folder> <CBO details csv> <out folder>
 
 Writes, into <out folder> (research/rebuild/resources/growth/):
   z1_household_net_worth.csv   the Federal Reserve's Financial Accounts (Z.1, release of 11 September 2026, table
@@ -12,7 +12,7 @@ Writes, into <out folder> (research/rebuild/resources/growth/):
                                SCF's last wave (build_table.scf_growth).
   ss_area_population.csv       the Social Security area population, every age, married and unmarried summed
                                (Macro-Projections historical.csv and projections.csv: CBO's January 2026 demographic
-                               projections), 2010-2075 (2060 until 4 November 2026).
+                               projections), 2010-2075.
   cbo_individual_income_tax.csv  CBO's February 2026 projections of individual income tax items (Revenue
                                Projections by Category, sheet 3, calendar years 2022-2036; billions of dollars, returns
                                in millions), one row per concept and year: year, concept, value.
@@ -53,7 +53,7 @@ last = max(nw)
 with open(os.path.join(out, 'z1_household_net_worth.csv'), 'w', newline='') as f:
     w = csv.writer(f)
     w.writerow(['year', 'value', 'note'])
-    for y in range(2010, 2076):   # to 2075 since 4 November 2026 (the long-run years; build_long_run.py added 2061-2075 by the same rule)
+    for y in range(2010, 2076):
         if y in nw:
             w.writerow([y, f'{nw[y]:.0f}', ''])
         else:
@@ -63,7 +63,7 @@ with open(os.path.join(out, 'z1_household_net_worth.csv'), 'w', newline='') as f
 with open(os.path.join(out, 'ss_area_population.csv'), 'w', newline='') as f:
     w = csv.writer(f)
     w.writerow(['year', 'value', 'note'])
-    for y in range(2010, 2076):   # to 2075 since 4 November 2026 (the long-run years; build_long_run.py added 2061-2075 by the same rule)
+    for y in range(2010, 2076):
         assert y in pop, f'no population for {y}'
         w.writerow([y, f'{pop[y]:.0f}', 'projection (CBO January 2026 demographic projections)' if y >= 2026 else ''])
 with open(cbo) as f:

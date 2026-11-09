@@ -1,7 +1,7 @@
-"""The long-run projection years, 2036-2075 (4 November 2026, branch rebuild-longrun; scratch
-explore/2026-11-04/longrun/). Usage, through Slurm, from the repository root with the pipeline on PYTHONPATH:
+"""The long-run projection years, 2036-2075. Usage, through Slurm, from the repository root with the pipeline on
+PYTHONPATH:
 
-    python research/rebuild/resources/growth/build_long_run.py [<Macro-Projections folder>]
+    python -m resources_build.build_long_run [<Macro-Projections folder>]
 
 (default: settings tilt.projection.population_dir, the Macro-Projections interface the person counts come from).
 Every series the projection years read continues past CBO's last year used (settings tilt.projection.cbo_last_year,
@@ -27,7 +27,7 @@ Writes, all from the same interface:
 Each column's aggregate is its row of resources/projection_long_run_mapping.csv: kind 'total', the column's 2035 value
 times the aggregate's growth from 2035; kind 'per_unit', divided by the growth of 'units' or 'population' (column
 per) when the series is per return or per person, or by nothing for a price; 'fade' continues the column's own
-yearly decline (alimony, John's decision 2 of 3 November).
+yearly decline (alimony).
 """
 import csv
 import os
@@ -36,11 +36,10 @@ import sys
 import numpy as np
 import pandas as pd
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-RES = os.path.dirname(HERE)
-sys.path.insert(0, os.path.join(os.path.dirname(RES), 'pipeline'))
-from shared import common  # noqa: E402
+from shared import common
 
+RES = common.RESOURCES
+HERE = os.path.join(RES, 'growth')
 P = common.SETTINGS['tilt']['projection']
 MP = sys.argv[1] if len(sys.argv) > 1 else P['population_dir']
 L = int(P['cbo_last_year'])
@@ -68,7 +67,7 @@ lev = lr.set_index('year')
 
 def agg(name, y):
     # a sum of terms, each a product of Macro-Projections columns ('gdp * tsy_3m': nominal GDP times the 3-month bill
-    # rate, the taxable interest series of build_interest_series.py; 5 November 2026). Read from the whole interface,
+    # rate, the taxable interest series of build_interest_series.py). Read from the whole interface,
     # so a rate need not be one of AGG; a column of AGG has the same value in both
     return float(sum(np.prod([float(m.loc[y, f.strip()]) for f in c.split('*')]) for c in name.split('+')))
 
@@ -146,6 +145,8 @@ for name in ('projection_series_b.csv', 'projection_series_med.csv'):
     print(f'{name}: rows {L + 1}-{LAST} added for {len(d.columns)} columns')
 
 # today's 'current' rows that resolve to a CBO or Federal Reserve series in every year 2024-L: their growth in total
+# (projection_growth.plan_factors, which this section needs, was deleted in the restructure of 8 November 2026: this
+# section stops; the committed projection_series_current.csv is the one the pipeline reads)
 from scale import projection_growth as PG  # noqa: E402
 rows = MAP[MAP.file == 'projection_series_current.csv'].set_index('column')
 cols = list(rows.index)

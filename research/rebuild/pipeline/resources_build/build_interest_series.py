@@ -1,8 +1,7 @@
-"""The growth of taxable interest after the jump-off year (John, 5 November 2026; branch rebuild-interest-growth;
-scratch explore/2026-11-05/interest_check/FINDINGS.md and explore/2026-11-05/interest_growth/). Usage, through Slurm,
+"""The growth of taxable interest after the jump-off year. Usage, through Slurm,
 from the repository root with the pipeline on PYTHONPATH:
 
-    python research/rebuild/resources/growth/build_interest_series.py [<Macro-Projections folder>]
+    python -m resources_build.build_interest_series [<Macro-Projections folder>]
 
 (default: settings tilt.projection.population_dir, the Macro-Projections interface the long-run series come from).
 
@@ -27,11 +26,9 @@ import sys
 import numpy as np
 import pandas as pd
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-RES = os.path.dirname(HERE)
-sys.path.insert(0, os.path.join(os.path.dirname(RES), 'pipeline'))
-from shared import common  # noqa: E402
+from shared import common
 
+RES = common.RESOURCES
 P = common.SETTINGS['tilt']['projection']
 MP = sys.argv[1] if len(sys.argv) > 1 else P['population_dir']
 L = int(P['cbo_last_year'])

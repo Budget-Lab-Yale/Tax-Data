@@ -1,10 +1,9 @@
-"""Builds forbes_billionaires_<year>.csv: the US billionaires on one of Forbes's World's Billionaires lists (the March or
-April list of the year), one row per list entry. Generalises build_forbes_2019.py (29 October 2026) to every year
-2015-2026 (2 November 2026); the 2019 file it writes is the same as before, byte for byte.
+"""Builds resources/top/forbes_billionaires_<year>.csv: the US billionaires on one of Forbes's World's Billionaires
+lists (the March or April list of the year), one row per list entry, every year 2015-2026.
 
-Usage (run with python -I, the downloaded file passed as an argument, never imported):
+Usage (a plain script, run with python -I, the downloaded file passed as an argument, never imported):
 
-    python -I build_forbes.py <year> <forbes json> <production resources/forbes folder> <output csv>
+    python -I research/rebuild/pipeline/resources_build/build_forbes.py <year> <forbes json> <production resources/forbes folder> <output csv>
 
 <forbes json> is Forbes's own data for the list, from
 https://www.forbes.com/forbesapi/person/billionaires/<year>/position/true.json?limit=<n> (fetch dates, entry counts
@@ -24,7 +23,7 @@ residence_country, residence_state, family_entry (the name says "& family", or t
 & Doug Meijer: one fortune for a family, one record), couple_entry (a married couple named in one entry; one joint
 return). joint_with: the uri of a spouse listed separately (one joint return).
 
-Spouses (2 November 2026, redone for every year; research notes in explore/2026-11-02/billionaires): every
+Spouses: every
 same-surname group of US entries, every biography naming another US entry next to a word for a spouse, and every set
 of US entries with the same fortune and source (from 2023 Forbes lists a couple's shared fortune as two entries of
 half each) were read by hand. SPOUSE_PAIRS are the married couples found; a pair is joined in every year both are on

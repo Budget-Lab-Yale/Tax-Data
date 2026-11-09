@@ -1,12 +1,13 @@
-"""Builds nipa_pce_categories.csv (30 October 2026, targets for every year): BEA NIPA Table 2.4.5U (nominal PCE by
-product, annual, release of 29 October 2026, the underlying detail workbook Section2All_xls.xlsx as extracted to
-codex_cbo/derived/nipa_2_4_5u_A.csv), billions of dollars, 2010-2025, the eight CEX categories in the columns of
+"""Builds resources/growth/nipa_pce_categories.csv: BEA NIPA Table 2.4.5U (nominal PCE by product, annual, release
+of 29 October 2026, the underlying detail workbook Section2All_xls.xlsx as extracted to a CSV of series, period and
+millions of dollars), billions of dollars, 2010-2025, the eight CEX categories in the columns of
 production's resources/pce_historical.csv (which starts in 2017), so the CEX can be grown to 2015 and 2016:
   c_clothing DCLORC; c_motor_vehicles DMOTRC; c_durables DFDHRC + DREQRC + DODGRC; c_other_nondurables DONGRC;
   c_food_off_premises DFXARC; c_gasoline DGOERC; c_housing_utilities DHUTRC;
   c_other_services_health DPCERC - DGDSRC - DHUTRC; gdp_c DPCERC.
-Usage: python -I build_nipa_pce.py <nipa_2_4_5u_A.csv> <production pce_historical.csv> <out csv>. Prints the largest
-difference from production's file in the years both have."""
+Usage (a plain script, run with python -I): python -I research/rebuild/pipeline/resources_build/build_nipa_pce.py
+<nipa_2_4_5u_A.csv> <production pce_historical.csv> <out csv>. Prints the largest difference from production's file
+in the years both have."""
 import csv
 import sys
 
