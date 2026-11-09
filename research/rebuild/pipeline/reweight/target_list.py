@@ -1031,7 +1031,7 @@ def tax_unit_rules(source):
         sec, key = name.split('.')
         picks.append(f'{name} = {common.SETTINGS.get(sec, {}).get(key, "(not set)")}')
     return (f'{s["tax_unit_rules"]}: {r["module"]} ({r["what"]}), units by {", ".join(s["built_by"])}; '
-            f'{"; ".join(picks)}; code commit {_commit()}')
+            f'{"; ".join(picks + [f"code commit {_commit()}"])}')
 
 
 # ---- published grids ----------------------------------------------------------------------------------------
