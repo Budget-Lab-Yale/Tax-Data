@@ -1,28 +1,15 @@
-# 2026: how every dollar item is grown from the year it was measured in to another year (TARGETS.md section 12;
-# NEXT_STEPS.md, 29 October). Written out in full, one line per item; nothing is inherited. growth.py reads it, and
-# target_list.resolve stops before any run if a dollar item the pipeline grows has no line here.
-#
-# The series named here are used for every year this year's run grows across: the PUF year (2015) to 2019 (the dollar
-# maps, build_table.build_maps), the PUF year to each survey year (the tax data and the survey cut points of the
-# translation, build_table.translate_surveys) and, for a start from an earlier year's file, that year to 2019
-# (tilt.grow_dollars).
-#
-# Each line:
-#   source    the series that grows positive values (growth.SERIES; the data in research/rebuild/resources/growth/,
-#             sources.csv there says where each came from), or "none: <reason>";
+# 2026: how every dollar item is grown from the year it was measured in to another year, one line per item.
+# growth.py reads it, and target_list.resolve stops before any run if a dollar item has no line here.
+#   source    the series that grows positive values (growth.SERIES; data in resources/growth/), or "none: <reason>";
 #   negative  how negative values are grown: same (the same series), another series, or "none: <reason>";
 #   measure   what the series is per: per return with the item, per holder, per household, a price;
 #   reason    one line.
-# The rule (John, 29 October): every dollar item needs a source in every year; the source must be exogenous to tax
-# policy, so SOI's itemized deduction tables (Table 2.1) are ruled out (the 2017 law's collapse in itemizers moves their
-# totals and means); a series on the underlying spending or tax, per holder where a clean one exists, else per
-# household when the share of holders is steady, else AGI per return as a rough prior. The Table 1.4 lines are today's
-# lines as they were (build_table.growth before 29 October). Until 29 October the 26 items with no Table 1.4 line
-# (mortgage interest, real estate tax, the other itemized deductions, the AMT items, the credits and two other taxes)
-# were not grown at all; the research behind their sources is scratch explore/2026-10-29/growth_sources/REPORT.md.
+# Every source is exogenous to tax policy: a series on the underlying spending or tax, per holder where a clean one
+# exists, else per household, else AGI per return as a rough prior. SOI's itemized deduction tables are not used, as
+# the 2017 law moved their totals and means. See FEATURES.md, "Dollars in the target year".
+# Past a series' last year the pipeline extends it: Table 1.4 items by CBO's growth per return of the closest line,
+# the direct series by personal income per person, PCE by CBO's personal income per person.
 
-#
-# 2026 (30 October 2026): copied from 2019's folder; every line is 2019's. Past each series' last year the pipeline extends it: Table 1.4 items by CBO's growth per return of the closest line (targets.carried), the direct series by personal income per person (growth.level), PCE by CBO's personal income per person.
 year: 2026
 items:
 
