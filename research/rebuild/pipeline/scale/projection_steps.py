@@ -5,13 +5,16 @@ growth factor (step2_factor, called by start.grow_dollars); step 3 supplies the 
 See FEATURES.md, "Projection years".
 """
 import os
+from functools import lru_cache
 
 import numpy as np
 import pandas as pd
 
 from shared import common
+from prep import soi as TG
+from reweight import solver as SV
+from scale import projection_demographics as PD
 
-HERE = common.PIPELINE   # settings paths in tilt.projection are relative to the pipeline folder
 RESOURCES = common.RESOURCES
 P = common.SETTINGS['tilt']['projection']
 TOP_AGE = 80          # ages 80 and over are one cell (the file caps the primary's and spouse's ages at 80)
@@ -23,6 +26,11 @@ ADD_COLUMNS = ['column', 'first_year', 'last_year', 'percent', 'note']
 PREFIX = {'persons': 'pp__', 'returns': 'pr__', 'item_pos': 'pi+__', 'item_neg': 'pi-__', 'filing_season': 'fs__'}
 
 STATE = {}   # this run's year: the base file, its weights, the step 1 and 2 results and the start
+
+
+def _path(p):
+    """A settings path, relative to the pipeline folder unless absolute."""
+    return p if os.path.isabs(p) else os.path.join(common.PIPELINE, p)
 
 
 # ---- people by marital status and single year of age ---------------------------------------------------------
@@ -56,23 +64,22 @@ def cell_label(k):
     return f"{'married' if m else 'not married'}, age {a}{' and over' if a >= TOP_AGE else ''}"
 
 
-_POP = {}
+@lru_cache(maxsize=None)
+def _population_table():
+    """CBO's population by year (settings tilt.projection.population_dir), the historical and the projections file
+    together; a year in both must hold the same numbers."""
+    d = P['population_dir']
+    both = pd.concat([pd.read_csv(os.path.join(d, 'historical.csv')), pd.read_csv(os.path.join(d, 'projections.csv'))])
+    cols = [c for c in both.columns if c.startswith(('married_', 'unmarried_'))]
+    for y_ in both[both.duplicated('year', keep=False)]['year'].unique():
+        a_ = both[both.year == y_][cols].to_numpy(float)
+        assert np.allclose(a_[0], a_[1:], rtol=1e-9), f'population {y_}: historical and projections differ'
+    return both.drop_duplicates('year').set_index('year')
 
 
 def cbo_population(year, married, age):
-    """CBO's Social Security area population of one marital status at one age, or at TOP_AGE and over (settings
-    tilt.projection.population_dir). A year in both the historical and the projections file must hold the same
-    numbers."""
-    if 'pop' not in _POP:
-        d = P['population_dir']
-        h, p = pd.read_csv(os.path.join(d, 'historical.csv')), pd.read_csv(os.path.join(d, 'projections.csv'))
-        both = pd.concat([h, p])
-        cols = [c for c in both.columns if c.startswith(('married_', 'unmarried_'))]
-        for y_ in both[both.duplicated('year', keep=False)]['year'].unique():
-            a_ = both[both.year == y_][cols].to_numpy(float)
-            assert np.allclose(a_[0], a_[1:], rtol=1e-9), f'population {y_}: historical and projections differ'
-        _POP['pop'] = both.drop_duplicates('year').set_index('year')
-    t = _POP['pop']
+    """CBO's Social Security area population of one marital status at one age, or at TOP_AGE and over."""
+    t = _population_table()
     assert int(year) in t.index, f'CBO population: no {year}'
     ages = range(age, 101) if age >= TOP_AGE else [age]
     assert not (married and age < MARRIED_FROM), f'no married cell under {MARRIED_FROM} (age {age})'
@@ -112,15 +119,11 @@ def step1(df, w, year, s):
     that meets the people counts and the dependent filers' six cells exactly. Each count is the s file's count times
     CBO's growth of the same people. Forbes list records keep their weight, as the top step replaces them. Returns the
     weights and a summary dict; sets STATE."""
-    from scale import projection_demographics as PD
-    from reweight import solver as SV
     keep = (df['billionaire'].to_numpy() != 1) if 'billionaire' in df else np.ones(len(df), bool)
     M = person_matrix(df)
     lev = w[keep] @ M[keep]
     cells = []
-    for k in range(M.shape[1]):
-        if lev[k] == 0:
-            continue
+    for k in np.flatnonzero(lev).tolist():
         m, a = divmod(k, TOP_AGE + 1)
         base = cbo_population(s, m, a)
         assert base > 0, f'{cell_label(k)}: the {s} file has {lev[k]:,.0f} people, CBO none'
@@ -143,21 +146,19 @@ def step1(df, w, year, s):
                         [c['mask'][keep].astype(float) for c in dep_cells])
     T = np.array([c['target'] for c in cells] + [c['target'] for c in dep_cells])
     m_ = len(T)
-    S_tilt = common.SETTINGS['tilt']
     w_k, info = SV.solve(w[keep], F, T, np.zeros(m_), np.ones(m_, bool), [None] * m_,
-                         {**S_tilt, 'solver_importance': np.ones(m_)})
+                         {**common.SETTINGS['tilt'], 'solver_importance': np.ones(m_)})
     assert info['converged'], f'step 1 did not converge: {info["how"]}'
     got = F.T @ w_k
     assert np.allclose(got, T, rtol=1e-7), f'step 1: largest miss {np.max(np.abs(got / T - 1)):.2e}'
     w1 = w.copy()
     w1[keep] = w_k
-    ess = SV.effective_sample
     f = np.where(w[keep] > 0, w_k / np.where(w[keep] > 0, w[keep], 1), 1.0)
     table = pd.DataFrame([{k: v for k, v in c.items() if k != 'mask'} for c in cells + dep_cells])
     table['after_step1'] = got
     out = {'converged': info['converged'], 'how': info['how'], 'Newton steps': info['newton_steps'],
            'cells': m_, 'KL move (nats)': info['kl_move'] if 'kl_move' in info else SV.kl_move(w[keep], w_k),
-           'effective sample kept (%)': 100 * ess(w_k) / ess(w[keep]),
+           'effective sample kept (%)': 100 * SV.effective_sample(w_k) / SV.effective_sample(w[keep]),
            'weight factor, 1st percentile': float(np.quantile(f, 0.01)),
            'weight factor, 99th percentile': float(np.quantile(f, 0.99)),
            'units, 2023 file (millions)': w[keep].sum() / 1e6, 'units after step 1 (millions)': w_k.sum() / 1e6}
@@ -185,73 +186,62 @@ def step1(df, w, year, s):
 
 
 # ---- step 2 ---------------------------------------------------------------------------------------------------
-_TABLE = {}
-_ADD = {}
-
-
+@lru_cache(maxsize=None)
 def items_table():
     """The items table (settings tilt.projection.items_table): one row per grown column with its series ('current',
     'file:<csv>:<column>', 'same_as:<column>' or 'none'), its kind ('total' or 'per_unit'), whether its total is
     targeted, and the relative error of that target."""
-    if 't' not in _TABLE:
-        p = P['items_table']
-        p = p if os.path.isabs(p) else os.path.join(HERE, p)
-        t = pd.read_csv(p, dtype={'column': str, 'series': str, 'kind': str, 'note': str}, keep_default_na=False)
-        assert list(t.columns) == ITEMS_COLUMNS, f'{p}: columns {list(t.columns)}, not {ITEMS_COLUMNS}'
-        assert t['column'].is_unique, f'{p}: a column twice'
-        assert t['kind'].isin(['auto', 'total', 'per_unit']).all(), f'{p}: kind is auto, total or per_unit'
-        assert t['target'].isin([0, 1]).all(), f'{p}: target is 0 or 1'
-        bad = t[(t.target == 1) & ~(pd.to_numeric(t['error'], errors='coerce') > 0)]
-        assert bad.empty, f'{p}: targeted items with no positive error: {bad.column.tolist()}'
-        bad = t[(t.kind == 'auto') & ~t.series.str.startswith('same_as:')]
-        assert bad.empty, f'{p}: kind auto is only for series same_as: {bad.column.tolist()}'
-        bad = t[(t.series == 'current') & (t.kind != 'per_unit')]
-        assert bad.empty, (f'{p}: rows with series current must be kind per_unit (a growth.yaml or SCF rule per unit); '
-                           f'a CBO series goes in a series file: {bad.column.tolist()}')
-        _TABLE['t'] = t.set_index('column')
-        _TABLE['path'] = p
-    return _TABLE['t']
+    p = _path(P['items_table'])
+    t = pd.read_csv(p, dtype={'column': str, 'series': str, 'kind': str, 'note': str}, keep_default_na=False)
+    assert list(t.columns) == ITEMS_COLUMNS, f'{p}: columns {list(t.columns)}, not {ITEMS_COLUMNS}'
+    assert t['column'].is_unique, f'{p}: a column twice'
+    assert t['kind'].isin(['auto', 'total', 'per_unit']).all(), f'{p}: kind is auto, total or per_unit'
+    assert t['target'].isin([0, 1]).all(), f'{p}: target is 0 or 1'
+    bad = t[(t.target == 1) & ~(pd.to_numeric(t['error'], errors='coerce') > 0)]
+    assert bad.empty, f'{p}: targeted items with no positive error: {bad.column.tolist()}'
+    bad = t[(t.kind == 'auto') & ~t.series.str.startswith('same_as:')]
+    assert bad.empty, f'{p}: kind auto is only for series same_as: {bad.column.tolist()}'
+    bad = t[(t.series == 'current') & (t.kind != 'per_unit')]
+    assert bad.empty, (f'{p}: rows with series current must be kind per_unit (a growth.yaml or SCF rule per unit); '
+                       f'a CBO series goes in a series file: {bad.column.tolist()}')
+    return t.set_index('column')
 
 
+@lru_cache(maxsize=None)
 def add_factors_table():
     """The add factors table (settings tilt.projection.add_factors_table): extra growth in percent a year on top of an
     item's series, one row per item and range of years. Every column must be in the items table, no item's years covered
     twice, and every non-zero percent must carry a note."""
-    if 't' not in _ADD:
-        p = P['add_factors_table']
-        p = p if os.path.isabs(p) else os.path.join(HERE, p)
-        t = pd.read_csv(p, dtype={'column': str, 'note': str}, keep_default_na=False)
-        assert list(t.columns) == ADD_COLUMNS, f'{p}: columns {list(t.columns)}, not {ADD_COLUMNS}'
-        for c in ('first_year', 'last_year', 'percent'):
-            v = pd.to_numeric(t[c], errors='coerce')
-            assert v.notna().all() and np.isfinite(v).all(), f'{p}: {c} missing or not a number on rows {t.index[v.isna()].tolist()}'
-            t[c] = v
-        assert (t.first_year == t.first_year.round()).all() and (t.last_year == t.last_year.round()).all(), \
-            f'{p}: years must be whole numbers'
-        t[['first_year', 'last_year']] = t[['first_year', 'last_year']].astype(int)
-        assert (t.first_year <= t.last_year).all(), f'{p}: first_year after last_year'
-        assert (t.percent > -100).all(), f'{p}: a percent of -100 or less'
-        bad = t[(t.percent != 0) & (t.note.str.strip() == '')]
-        assert bad.empty, f'{p}: non-zero add factors with no note (who, when, why): {bad.column.tolist()}'
-        missing = sorted(set(t.column) - set(items_table().index))
-        assert not missing, f'{p}: columns not in the items table {_TABLE["path"]}: {missing}'
-        for col, g in t.groupby('column'):
-            years = [y for r in g.itertuples() for y in range(r.first_year, r.last_year + 1)]
-            assert len(years) == len(set(years)), f'{p}: {col} has a year in two rows'
-        _ADD['t'] = t
-        _ADD['path'] = p
-    return _ADD['t']
+    p = _path(P['add_factors_table'])
+    t = pd.read_csv(p, dtype={'column': str, 'note': str}, keep_default_na=False)
+    assert list(t.columns) == ADD_COLUMNS, f'{p}: columns {list(t.columns)}, not {ADD_COLUMNS}'
+    for c in ('first_year', 'last_year', 'percent'):
+        v = pd.to_numeric(t[c], errors='coerce')
+        assert v.notna().all() and np.isfinite(v).all(), f'{p}: {c} missing or not a number on rows {t.index[v.isna()].tolist()}'
+        t[c] = v
+    assert (t.first_year == t.first_year.round()).all() and (t.last_year == t.last_year.round()).all(), \
+        f'{p}: years must be whole numbers'
+    t[['first_year', 'last_year']] = t[['first_year', 'last_year']].astype(int)
+    assert (t.first_year <= t.last_year).all(), f'{p}: first_year after last_year'
+    assert (t.percent > -100).all(), f'{p}: a percent of -100 or less'
+    bad = t[(t.percent != 0) & (t.note.str.strip() == '')]
+    assert bad.empty, f'{p}: non-zero add factors with no note (who, when, why): {bad.column.tolist()}'
+    missing = sorted(set(t.column) - set(items_table().index))
+    assert not missing, f'{p}: columns not in the items table {_path(P["items_table"])}: {missing}'
+    for col, g in t.groupby('column'):
+        years = [y for r in g.itertuples() for y in range(r.first_year, r.last_year + 1)]
+        assert len(years) == len(set(years)), f'{p}: {col} has a year in two rows'
+    return t
 
 
 def add_factor(col, s, t):
     """Column col's add factor from base year s to year t: the product of (1 + percent / 100) over the years s + 1 to
     t covered by its rows of the add factors table (exactly 1 with none). Returns (factor, rows in force)."""
     tab = add_factors_table()
-    rows = tab[tab.column == col]
     # a row covering years up to the start year s counts only its years after s: the start's file already carries the
     # earlier years' add factors
     f, used = 1.0, []
-    for r in rows.itertuples():
+    for r in tab[tab.column == col].itertuples():
         n = len(range(max(r.first_year, s + 1), min(r.last_year, t) + 1))
         if n > 0 and r.percent != 0:
             f *= (1 + r.percent / 100) ** n
@@ -278,7 +268,7 @@ def step2_factor(col, x, fp_cur, fn_cur, series_cur, s, t):
     series and population growth is not counted twice. fp_cur, fn_cur, series_cur: the per-unit rule start.grow_dollars
     uses for a 'current' row. Returns (fp, fn, description) and records the item in STATE['items']."""
     tab = items_table()
-    assert col in tab.index, f'{col}: grown by the projection start but not in the items table {_TABLE["path"]}'
+    assert col in tab.index, f'{col}: grown by the projection start but not in the items table {_path(P["items_table"])}'
     row = tab.loc[col]
     series, kind = row['series'], row['kind']
     if series == 'current':
@@ -311,14 +301,14 @@ def step2_factor(col, x, fp_cur, fn_cur, series_cur, s, t):
            'error': row['error'], 'add factor': A, 'filing season factor': 1.0 if fsm is None else fsm[0],
            'growth positive': G[0], 'growth negative': G[1]}
     fs = list(G)
-    for i, sign in enumerate((1, -1)):
+    for i, (sign, nm) in enumerate(((1, 'positive'), (-1, 'negative'))):
         m = keep & (sign * x > 0)
         t23, t1 = float(w0[m] @ x[m]), float(w1[m] @ x[m])
-        rec[f'2023 total {"positive" if sign == 1 else "negative"}'] = t23
-        rec[f'records {"positive" if sign == 1 else "negative"}'] = int(m.sum())
+        rec[f'2023 total {nm}'] = t23
+        rec[f'records {nm}'] = int(m.sum())
         if kind == 'total' and m.any() and t1 != 0:
             fs[i] = G[i] * t23 / t1
-        rec[f'factor {"positive" if sign == 1 else "negative"}'] = fs[i]
+        rec[f'factor {nm}'] = fs[i]
     assert all(np.isfinite(f_) and f_ > 0 for f_ in fs), f'{col}: step 2 factors {fs}'
     STATE['items'][col] = rec
     return fs[0], fs[1], f'{kind}: {what}'
@@ -336,7 +326,7 @@ def check_add_factors_applied(t):
     tab = add_factors_table()
     live = tab[(tab.percent != 0) & (tab.first_year <= t)]
     lost = sorted(set(live.column) - set(STATE['items']))
-    assert not lost, f'{_ADD["path"]}: add factors in force for {t} on columns step 2 did not grow: {lost}'
+    assert not lost, f'{_path(P["add_factors_table"])}: add factors in force for {t} on columns step 2 did not grow: {lost}'
 
 
 def same_as_add_factor(col, s, t):
@@ -392,17 +382,16 @@ def variable_def(v):
     raise KeyError(v)
 
 
-_CACHE = {}
+_PERSONS = {}   # the person matrix of the frame last asked for (one people target per cell reads it)
 
 
 def record_value(df, v):
     kind = variable_def(v)['projection']
     key = v[len(PREFIX[kind]):]
     if kind == 'persons':
-        ck = ('persons', id(df), len(df))
-        if _CACHE.get('pk') != ck:
-            _CACHE.update(pk=ck, persons=person_matrix(df))
-        return _CACHE['persons'][:, int(key)].astype(float)
+        if _PERSONS.get('frame') != (id(df), len(df)):
+            _PERSONS.update(frame=(id(df), len(df)), matrix=person_matrix(df))
+        return _PERSONS['matrix'][:, int(key)].astype(float)
     if kind == 'returns':
         return ((df['filer'].to_numpy() == 1) & (return_group(df) == int(key))).astype(float)
     if kind == 'filing_season':
@@ -412,40 +401,38 @@ def record_value(df, v):
     return np.maximum(x, 0) if kind == 'item_pos' else np.maximum(-x, 0)
 
 
-def _start():
-    assert STATE.get('start') is not None, 'projection targets need the start (tilt sets PS.STATE["start"])'
-    return STATE['start']
-
-
-def _list_part(df, w, fixed, x):
-    return float((w[fixed] * x[fixed]).sum())
-
-
 def _row(label, value, variable, source):
     return {'cell': label, 'statistic': 'amount', 'value': float(value), 'variable': variable, 'source': source,
             'cell_spec': {'parts': {}, 'filters': [], 'label': label, 'agi': None, 'line': None}}
 
 
+def _start():
+    """The start the tilt set (the frame, its weights, the records held fixed) and the Forbes list's records."""
+    assert STATE.get('start') is not None, 'projection targets need the start (tilt sets PS.STATE["start"])'
+    df, w, fixed = STATE['start']
+    lst = df['billionaire'].to_numpy() == 1 if 'billionaire' in df else np.zeros(len(df), bool)
+    assert not (lst & ~fixed).any(), 'a Forbes list record is not held fixed'
+    return df, w, lst
+
+
 def outside_rows(src, year):
     """The rows of an outside source of this module (target_list.outside_rows)."""
     assert STATE.get('year') == int(year), f'{src}: step 1 was not run for {year}'
-    df, w, fixed = _start()
-    lst = df['billionaire'].to_numpy() == 1 if 'billionaire' in df else np.zeros(len(df), bool)
-    assert not (lst & ~fixed).any(), 'a Forbes list record is not held fixed'
+    df, w, lst = _start()
     out = []
     if src == 'projection persons':
         for r in STATE['person_targets'].itertuples(index=False):
             if r.column < 0:
                 continue   # the dependent filers' cells: covered by their returns groups (every dependent filer files)
             v = f"{PREFIX['persons']}{int(r.column)}"
-            lp = _list_part(df, w, lst, record_value(df, v))
+            lp = float((w[lst] * record_value(df, v)[lst]).sum())
             out.append(_row(r.cell, r.target + lp, v,
                             f"the 2023 file's {r.base:,.0f} people (Forbes list left out) times CBO's growth of the "
                             f"same people {r.growth:.5f} (Macro-Projections), plus the year's list {lp:,.0f}"))
     elif src == 'projection returns':
         for g, d in STATE['return_shares'].items():
             v = f"{PREFIX['returns']}{g}"
-            lp = _list_part(df, w, lst, record_value(df, v))
+            lp = float((w[lst] * record_value(df, v)[lst]).sum())
             share = d['filers 2023'] / d['units 2023']
             out.append(_row(group_label(g), share * d['units after step 1'] + lp, v,
                             f"the 2023 file's filing share {share:.5f} ({d['filers 2023']:,.0f} of {d['units 2023']:,.0f} "
@@ -463,9 +450,9 @@ def outside_rows(src, year):
                 v = f'{PREFIX[pre]}{col}'
                 x = record_value(df, v)
                 val = float(w @ x)
-                lp = _list_part(df, w, lst, x)
-                expect = abs(r[f'2023 total {nm}']) * r[f'growth {nm}'] if r['kind'] == 'total' else None
-                if expect is not None:   # the start must sit on its series (step 2), the list apart
+                lp = float((w[lst] * x[lst]).sum())
+                if r['kind'] == 'total':   # the start must sit on its series (step 2), the list apart
+                    expect = abs(r[f'2023 total {nm}']) * r[f'growth {nm}']
                     assert abs((val - lp) / expect - 1) < 1e-6, \
                         f'{col} {nm}: the start {val - lp:,.0f} is not the 2023 total times its growth {expect:,.0f}'
                 label = f"{col}{' (losses)' if nm == 'negative' else ''}"
@@ -488,20 +475,17 @@ def write(folder):
     lines = ['## The projection start (projection_steps.py): step 1, people by age and marital status', '',
              pd.Series(STATE['step1']).to_frame('').to_markdown(), '',
              f"Step 2: {len(items)} columns; kinds {items['kind'].value_counts().to_dict()}; targeted "
-             f"{int(items['target'].sum())} (projection_step2_items.csv). Items table: {_TABLE.get('path')}", '']
-    add_factors_table()
+             f"{int(items['target'].sum())} (projection_step2_items.csv). Items table: {_path(P['items_table'])}", '']
     if STATE['add_factors']:
         af = pd.DataFrame(STATE['add_factors'])
         af['factor to this year'] = (1 + af['percent'] / 100) ** af['years in force']
         af.to_csv(f'{folder}/projection_add_factors.csv', index=False)
         lines += [f"Add factors in force, on top of each item's series ({len(af)} rows; add factors table "
-                  f"{_ADD['path']}; projection_add_factors.csv):", '',
+                  f"{_path(P['add_factors_table'])}; projection_add_factors.csv):", '',
                   af.to_markdown(index=False, floatfmt='.5f'), '']
     else:
-        lines += [f"Add factors: none in force (add factors table {_ADD['path']}).", '']
-    lines += fs_write(folder)
-    lines += ig_write(folder)
-    return lines
+        lines += [f"Add factors: none in force (add factors table {_path(P['add_factors_table'])}).", '']
+    return lines + fs_write(folder) + ig_write(folder)
 
 
 # ---- the filing-season blend for the first projection year ---------------------------------------------------------
@@ -514,14 +498,13 @@ FS_LEVELS = {'full': 1.0, 'mostly trust': 2.0 / 3.0, 'mostly not trust': 1.0 / 3
 # the November tables' items; fs_columns gives the items-table columns each one grows
 FS_ITEMS = ['returns', 'wages', 'txbl_int', 'dividends', 'div_pref', 'txbl_ira_dist', 'txbl_pens_dist',
             'capital_gains_line13', 'schedule_e', 'sole_prop', 'farm', 'ui']
-# AGI groups: the standard grid with no AGI and $1-10,000 merged and $1 million and over at the top; Schedule E merges
-# every group below $75,000
-FS_EDGES = [(None, 10000, 'under $10k'), (10000, 20000, '$10k-20k'), (20000, 30000, '$20k-30k'),
+# AGI groups (lower edge inclusive, upper edge exclusive): the standard grid with no AGI and $1-10,000 merged and
+# $1 million and over at the top; Schedule E merges every group below $75,000
+FS_EDGES = [(-np.inf, 10000, 'under $10k'), (10000, 20000, '$10k-20k'), (20000, 30000, '$20k-30k'),
             (30000, 40000, '$30k-40k'), (40000, 50000, '$40k-50k'), (50000, 75000, '$50k-75k'),
             (75000, 100000, '$75k-100k'), (100000, 200000, '$100k-200k'), (200000, 500000, '$200k-500k'),
-            (500000, 1000000, '$500k-1m'), (1000000, None, '$1m and over')]
-FS_EDGES_E = [(None, 75000, 'under $75k')] + FS_EDGES[6:]
-_FS = {}
+            (500000, 1000000, '$500k-1m'), (1000000, np.inf, '$1m and over')]
+FS_EDGES_E = [(-np.inf, 75000, 'under $75k')] + FS_EDGES[6:]
 
 
 def fs_active(year, s=None):
@@ -550,22 +533,23 @@ def fs_columns(item):
     return {'returns': [], 'dividends': ['div_ord'], 'capital_gains_line13': ['kg_st', 'kg_lt', 'kg_dist']}.get(item, [item])
 
 
+@lru_cache(maxsize=None)
+def fs_trust_table():
+    """The trust table (settings filing_season.trust_table): one row per November item with its level and reason."""
+    p = _path(FS['trust_table'])
+    t = pd.read_csv(p, keep_default_na=False)
+    assert list(t.columns) == ['item', 'level', 'reason'], f'{p}: columns item, level, reason'
+    assert t['item'].is_unique and set(t['item']) == set(FS_ITEMS), \
+        f'{p}: one row for each of {FS_ITEMS}; has {t["item"].tolist()}'
+    bad = t[~t['level'].isin(FS_LEVELS)]
+    assert bad.empty, f'{p}: levels are {list(FS_LEVELS)}; not {bad["level"].tolist()}'
+    assert (t['reason'].str.strip() != '').all(), f'{p}: every level needs a reason'
+    return t.set_index('item')
+
+
 def fs_trust():
-    """{item: weight} from the trust table (settings filing_season.trust_table, relative to the pipeline folder)."""
-    if 'trust' not in _FS:
-        p = FS['trust_table']
-        p = p if os.path.isabs(p) else os.path.join(HERE, p)
-        t = pd.read_csv(p, keep_default_na=False)
-        assert list(t.columns) == ['item', 'level', 'reason'], f'{p}: columns item, level, reason'
-        assert t['item'].is_unique and set(t['item']) == set(FS_ITEMS), \
-            f'{p}: one row for each of {FS_ITEMS}; has {t["item"].tolist()}'
-        bad = t[~t['level'].isin(FS_LEVELS)]
-        assert bad.empty, f'{p}: levels are {list(FS_LEVELS)}; not {bad["level"].tolist()}'
-        assert (t['reason'].str.strip() != '').all(), f'{p}: every level needs a reason'
-        _FS['trust'] = {r.item: FS_LEVELS[r.level] for r in t.itertuples()}
-        _FS['trust_levels'] = dict(zip(t['item'], t['level']))
-        _FS['trust_path'] = p
-    return _FS['trust']
+    """{item: weight}, the trust level's weight on the November tables."""
+    return {item: FS_LEVELS[level] for item, level in fs_trust_table()['level'].items()}
 
 
 def fs_edges(item):
@@ -575,42 +559,37 @@ def fs_edges(item):
 def fs_group_of_class(item, lo):
     """The target group a class of the November tables (its lower edge; None for no AGI) falls in."""
     lo_ = -np.inf if (lo is None or (isinstance(lo, float) and np.isnan(lo))) else float(lo)
-    hit = [lab for a, b, lab in fs_edges(item) if (-np.inf if a is None else a) <= lo_ < (np.inf if b is None else b)]
+    hit = [lab for a, b, lab in fs_edges(item) if a <= lo_ < b]
     assert len(hit) == 1, (item, lo)
     return hit[0]
 
 
+@lru_cache(maxsize=None)
+def fs_tables():
+    """The November tables (settings filing_season.tables), the long layout."""
+    t = pd.read_csv(_path(FS['tables']), keep_default_na=False)
+    return t[t['layout'] == 'long']
+
+
+@lru_cache(maxsize=None)
 def fs_november(item, stat):
     """{group: (level base_year, level year)} and 'all' of an item in the November tables (the long layout)."""
-    key = (item, stat)
-    if key not in _FS:
-        if 'tables' not in _FS:
-            p = FS['tables']
-            p = p if os.path.isabs(p) else os.path.join(HERE, p)
-            t = pd.read_csv(p, keep_default_na=False)
-            t = t[t['layout'] == 'long']
-            _FS['tables'], _FS['tables_path'] = t, p
-        t = _FS['tables']
-        stat_ = 'returns' if stat in ('count', 'units') else 'amount'
-        out = {}
-        for y in (int(FS['base_year']), int(FS['year'])):
-            s = t[(t.tax_year == y) & (t['item'] == item) & (t.statistic == stat_)]
-            assert len(s) == 13, f'November tables {y}: {item} {stat_} has {len(s)} rows, not 13 (the total and 12 classes)'
-            for r in s.itertuples():
-                g = 'all' if r.agi_class == 'all' else fs_group_of_class(item, None if r.agi_lo == '' else float(r.agi_lo))
-                out.setdefault(g, [0.0, 0.0])[y != int(FS['base_year'])] += float(r.value)
-        assert all(v[0] != 0 for v in out.values()), f'{item} {stat}: a group with nothing in {FS["base_year"]}'
-        _FS[key] = out
-    return _FS[key]
+    t = fs_tables()
+    stat_ = 'returns' if stat in ('count', 'units') else 'amount'
+    out = {}
+    for y in (int(FS['base_year']), int(FS['year'])):
+        s = t[(t.tax_year == y) & (t['item'] == item) & (t.statistic == stat_)]
+        assert len(s) == 13, f'November tables {y}: {item} {stat_} has {len(s)} rows, not 13 (the total and 12 classes)'
+        for r in s.itertuples():
+            g = 'all' if r.agi_class == 'all' else fs_group_of_class(item, None if r.agi_lo == '' else float(r.agi_lo))
+            out.setdefault(g, [0.0, 0.0])[y != int(FS['base_year'])] += float(r.value)
+    assert all(v[0] != 0 for v in out.values()), f'{item} {stat}: a group with nothing in {FS["base_year"]}'
+    return out
 
 
+@lru_cache(maxsize=None)
 def fs_errors():
-    if 'errors' not in _FS:
-        p = FS['errors_table']
-        p = p if os.path.isabs(p) else os.path.join(HERE, p)
-        e = pd.read_csv(p)
-        _FS['errors'], _FS['errors_path'] = e, p
-    return _FS['errors']
+    return pd.read_csv(_path(FS['errors_table']))
 
 
 def fs_error(item, stat, group):
@@ -619,7 +598,7 @@ def fs_error(item, stat, group):
     e = fs_errors()
     s = e[(e['item'] == item) & (e.statistic == ('returns' if stat in ('count', 'units') else 'amount')) &
           (e['group'] == group)]
-    assert len(s) == 1, f'{_FS["errors_path"]}: no error for {item} {stat} {group}'
+    assert len(s) == 1, f'{_path(FS["errors_table"])}: no error for {item} {stat} {group}'
     r = s.iloc[0]
     if r.error_kind == 'dollars':
         assert np.isfinite(r.error_share_of_national) and r.error_share_of_national > 0, (item, group)
@@ -680,7 +659,7 @@ def fs_blend(item):
             C = sum(v * g for v, g in tot) / sum(v for v, _ in tot)
         else:
             C = fs_series_growth(fs_columns(item)[0])
-        b[item] = {'item': item, 'level': _FS['trust_levels'][item], 'w': w, 'november': N, 'cbo': C,
+        b[item] = {'item': item, 'level': fs_trust_table().loc[item, 'level'], 'w': w, 'november': N, 'cbo': C,
                    'blend': w * N + (1 - w) * C}
     return b[item]
 
@@ -731,8 +710,7 @@ def fs_rows(year):
     if not (fs_active(year) and int(year) == int(FS['year'])):
         return []
     from shared import dollars as D
-    df, w, fixed = _start()
-    lst = df['billionaire'].to_numpy() == 1 if 'billionaire' in df else np.zeros(len(df), bool)
+    df, w, lst = _start()
     b = STATE['df_base']
     k, w0 = STATE['keep'], STATE['w_base']
     fb, fs_ = b['filer'].to_numpy() == 1, df['filer'].to_numpy() == 1
@@ -742,21 +720,18 @@ def fs_rows(year):
     def row(item, stat, lab, lo, hi, value, se, source):
         v = f"{PREFIX['filing_season']}{item}"
         out.append({'cell': lab, 'statistic': stat, 'value': float(value), 'variable': v, 'source': source,
-                    'se': float(se), 'agi': (-np.inf if lo is None else lo, np.inf if hi is None else hi),
+                    'se': float(se), 'agi': (lo, hi),
                     'cell_spec': {'parts': {}, 'filters': [], 'label': lab, 'agi': None, 'line': None}})
-
-    def in_g(a, lo, hi):
-        return (a >= (-np.inf if lo is None else lo)) & (a < (np.inf if hi is None else hi))
 
     # the number of returns: shares across groups of the total the exact returns cells set
     T = sum(d['filers 2023'] / d['units 2023'] * d['units after step 1'] for d in STATE['return_shares'].values())
     bl = fs_blend('returns')
     nov = fs_november('returns', 'units')
-    base = {lab: float(w0[k & fb & in_g(a0, lo, hi)].sum()) for lo, hi, lab in FS_EDGES}
+    base = {lab: float(w0[k & fb & (a0 >= lo) & (a0 < hi)].sum()) for lo, hi, lab in FS_EDGES}
     grown = {lab: base[lab] * (bl['w'] * nov[lab][1] / nov[lab][0] + (1 - bl['w']) * bl['cbo']) for lab in base}
     for lo, hi, lab in FS_EDGES:
         share = grown[lab] / sum(grown.values())
-        lp = float(w[lst & fs_ & in_g(a1, lo, hi)].sum())
+        lp = float(w[lst & fs_ & (a1 >= lo) & (a1 < hi)].sum())
         kind, e = fs_error('returns', 'units', lab)
         val = share * T + lp
         row('returns', 'units', lab, lo, hi, val, e * val,
@@ -777,13 +752,11 @@ def fs_rows(year):
             nov = fs_november(item, stat)
             nat = abs(float(w0[k & fb] @ v0[k & fb]) * bl['blend'])
             for lo, hi, lab in fs_edges(item):
-                m0 = k & fb & in_g(a0, lo, hi)
+                m0 = k & fb & (a0 >= lo) & (a0 < hi)
                 base_g = float(w0[m0] @ v0[m0])
                 ng = nov[lab][1] / nov[lab][0]
                 g = bl['w'] * ng + (1 - bl['w']) * (bl['cbo'] if stat == 'amount' else 1.0)
-                if stat == 'count' and bl['w'] < 1:
-                    raise AssertionError('counts are targeted only for items of full trust')
-                lp_m = lst & fs_ & in_g(a1, lo, hi)
+                lp_m = lst & fs_ & (a1 >= lo) & (a1 < hi)
                 lp = float(w[lp_m] @ v1[lp_m])
                 val = base_g * g + lp
                 kind, e = fs_error(item, stat, lab)
@@ -815,7 +788,7 @@ def fs_write(folder):
     bl.to_csv(f'{folder}/projection_filing_season.csv', index=False)
     cols.to_csv(f'{folder}/projection_filing_season_columns.csv', index=False)
     lines = [f"## The filing-season blend (November tables {FS['base_year']} and {FS['year']}; trust table "
-             f"{_FS['trust_path']})", '', bl.to_markdown(index=False, floatfmt='.5f'), '',
+             f"{_path(FS['trust_table'])})", '', bl.to_markdown(index=False, floatfmt='.5f'), '',
              f"Step 2 factors on {len(cols)} columns (projection_filing_season_columns.csv).", '']
     if 'targets' in STATE['fs']:
         tg = pd.DataFrame(STATE['fs']['targets'])
@@ -847,7 +820,6 @@ def ig_split(df, w, s):
     """The two parts of the start file's non-qualified dividends. The stock-like part is SOI's split-year non-qualified
     dividends grown with qualified dividends to the start file's filers; the rate-like part is the rest. df, w: the
     start file and its own weights, before step 1."""
-    from prep import soi as TG
     y0 = int(IG['split_year'])
     assert y0 < int(s), f'interest_growth.split_year {y0} must be before the start year {s}'
     ordinary0, q0 = TG.soi_get(y0, 'ordinary dividends', 'amount'), TG.soi_get(y0, 'qualified dividends', 'amount')

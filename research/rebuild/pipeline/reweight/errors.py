@@ -4,14 +4,20 @@ Everything else is a judgment number with a written reason, and identities have 
 returns se in the published statistic's units, with error_kind and se_reason. See TARGETS.md, "Standard errors".
 """
 import glob
+import gzip
 import os
 import re
+import xml.etree.ElementTree as ET
+from functools import lru_cache
 
 import numpy as np
 import pandas as pd
 
 from shared import common
+from shared import growth as GR
+from shared import survey_mix
 from prep import soi as TG
+from reweight import target_list as TLS
 
 # Inputs downloaded once (public) to scratch:
 #   <out>/targets/soi_cv/raw/: SOI's CV workbooks, https://www.irs.gov/pub/irs-soi/{yy}in14cv.xls, {yy}in21cv.xls and
@@ -35,9 +41,13 @@ FULL_SAMPLE_SE = 0.01
 # no weights could meet. 0 or less turns the rule off.
 FULL_SAMPLE_CV_BELOW = 0.1
 AGES = common.AGE_LABELS[:common.ADULT_RANGES]
+CPS_REPLICATES = 160   # the ASEC's person replicate weights, successive difference replication
+
 
 # ---- 1. SOI's published coefficients of variation ------------------------------------------------
-_CV = None
+@lru_cache(maxsize=None)
+def _cv_table():
+    return pd.read_csv(f'{CV_DIR}/soi_cv.csv', keep_default_na=False, na_values=[''], low_memory=False)
 
 
 def soi_cells(year, table='1.4'):
@@ -45,10 +55,8 @@ def soi_cells(year, table='1.4'):
     lo, hi, variable, statistic (for the items soi.py names, else the mirror's item), value (dollars for amounts),
     cv_pct, se. A year with no CV workbook (a projection year) takes the CVs of the latest year
     that has one, said in the reason."""
-    global _CV
-    if _CV is None:
-        _CV = pd.read_csv(f'{CV_DIR}/soi_cv.csv', keep_default_na=False, na_values=[''], low_memory=False)
-    c = _CV[(_CV.table.astype(str) == table) & (_CV.panel == 'All returns')]
+    cv = _cv_table()
+    c = cv[(cv.table.astype(str) == table) & (cv.panel == 'All returns')]
     have = sorted(c.tax_year.unique())
     use = year if year in have else max(y for y in have if y <= year) if any(y <= year for y in have) else min(have)
     c = c[c.tax_year == use].copy()
@@ -119,7 +127,6 @@ def borrow_cv(cells, count=None, amount=None, returns=None):
 def dependent_filer_item_returns(year, variable, lo, hi):
     """Table 1.7's number of returns with an item (the variable's 'soi 1.7' count) in the AGI range [lo, hi), the
     all-AGI row when lo and hi are NaN: the count an amount's borrowed CV is matched on."""
-    from reweight import target_list as TLS
     t = TLS.table_17(year)
     t = t[t['item'] == TLS.table_17_item(variable, 'count')]
     x = t[t['lo'].isna()] if np.isnan(lo) else t[t['lo'].notna() & (t['lo'] >= lo) & (t['hi'] <= hi)]
@@ -129,7 +136,6 @@ def dependent_filer_item_returns(year, variable, lo, hi):
 
 def soi_errors(rows, year):
     """Table 1.4 targets (published CVs) and the counts of other SOI tables (borrowed CVs)."""
-    from reweight import target_list as TLS
     cells, cv_year = soi_cells(year)
     yr = '' if cv_year == year else f' (the {cv_year} CVs: no CV workbook for {year})'
     out = []
@@ -142,8 +148,7 @@ def soi_errors(rows, year):
             out.append((r.Index, r.value * cv / 100, 'soi_borrowed',
                         f'Table 1.7 amount, CV {cv:.2f}%: median of the {BORROW_K} Table 1.4 amount cells closest in '
                         f'amount and in returns with the item ({n:,.0f}){yr}: {what}'))
-            continue
-        if r.kind in ('age by AGI', 'status by AGI'):   # Tables 1.6 and 1.2 by AGI
+        elif r.kind in ('age by AGI', 'status by AGI'):   # Tables 1.6 and 1.2 by AGI
             # Where SOI samples every return in the AGI group, the full-sample judgment number. Elsewhere the CV is
             # borrowed only from Table 1.4's count cells in the same AGI group, because SOI's sampling rate rises with
             # income: 3,000 returns at $2-5 million are measured far better than 3,000 returns at $20,000.
@@ -162,36 +167,35 @@ def soi_errors(rows, year):
             out.append((r.Index, r.value * cv / 100, 'soi_borrowed',
                         f'Table 1.6 count, CV {cv:.2f}%: median of the {BORROW_K} Table 1.4 count cells in the same AGI '
                         f'group closest in returns{yr}: {what}'))
-            continue
-        if r.kind == 'IRS' and r.target == 'joint returns' or r.kind in ('age', 'age by status', 'dependent filers'):
+        elif r.kind == 'IRS' and r.target == 'joint returns' or r.kind in ('age', 'age by status', 'dependent filers'):
             cv, what = borrow_cv(cells, count=r.value)
             table = {'IRS': '1.2', 'age': '1.6', 'age by status': '1.6', 'dependent filers': '1.7'}[r.kind]
             out.append((r.Index, r.value * cv / 100, 'soi_borrowed',
                         f'Table {table} count, CV {cv:.2f}%: median of the {BORROW_K} Table 1.4 count cells closest in '
                         f'returns{yr}: {what}'))
-            continue
-        # the published lines behind the target, in Table 1.4 or (a calculator column) Table 3.3: the catalog's own
-        # lines, as target_list.expand summed them for the value
-        table, parts = TLS.soi_table_lines(r.variable, r.statistic)
-        use = cells if table == '1.4' else soi_cells(year, table)[0]
-        if np.isnan(r.agi_lo):   # the cell 'all': the table's total row
-            assert r.group == 'all', f'{r.kind} {r.group} {r.target}: no AGI range'
-            lo, hi = -np.inf, np.inf
         else:
-            lo, hi = float(r.agi_lo), float(r.agi_hi)
-        se, total, n, note = sum_error(use, parts, lo, hi)
-        if abs(total - r.value) > 1e-6 * max(abs(r.value), 1):
-            note = (note + '; ' if note else '') + f'cells add to {total:,.0f}, not the target {r.value:,.0f}'
-        how = 'one published cell' if n == 1 else f'sum of {n} published cells, taken as independent'
-        if se == 0 and r.value != 0:
-            # only cells SOI samples in full ($10,000,000 or more): no sampling error, so a judgment number
-            out.append((r.Index, FULL_SAMPLE_SE * abs(r.value), 'judgment',
-                        f'{100 * FULL_SAMPLE_SE:.1f}% of the value (settings errors.full_sample_se): SOI samples every '
-                        f'return here (published CV 0 or below {FULL_SAMPLE_CV_BELOW:g}%, {how}{yr}), so there is no sampling error; the number stands '
-                        'for the gap between the file\'s definitions and SOI\'s (the next bracket down, $5M-10M, has '
-                        'CVs of 0.6-2.9% on these items in 2019)'))
-            continue
-        out.append((r.Index, se, 'soi_cv', f'Table {table} CV, {how}{yr}' + (f'; {note}' if note else '')))
+            # the published lines behind the target, in Table 1.4 or (a calculator column) Table 3.3: the catalog's own
+            # lines, as target_list.expand summed them for the value
+            table, parts = TLS.soi_table_lines(r.variable, r.statistic)
+            use = cells if table == '1.4' else soi_cells(year, table)[0]
+            if np.isnan(r.agi_lo):   # the cell 'all': the table's total row
+                assert r.group == 'all', f'{r.kind} {r.group} {r.target}: no AGI range'
+                lo, hi = -np.inf, np.inf
+            else:
+                lo, hi = float(r.agi_lo), float(r.agi_hi)
+            se, total, n, note = sum_error(use, parts, lo, hi)
+            if abs(total - r.value) > 1e-6 * max(abs(r.value), 1):
+                note = (note + '; ' if note else '') + f'cells add to {total:,.0f}, not the target {r.value:,.0f}'
+            how = 'one published cell' if n == 1 else f'sum of {n} published cells, taken as independent'
+            if se == 0 and r.value != 0:
+                # only cells SOI samples in full ($10,000,000 or more): no sampling error, so a judgment number
+                out.append((r.Index, FULL_SAMPLE_SE * abs(r.value), 'judgment',
+                            f'{100 * FULL_SAMPLE_SE:.1f}% of the value (settings errors.full_sample_se): SOI samples every '
+                            f'return here (published CV 0 or below {FULL_SAMPLE_CV_BELOW:g}%, {how}{yr}), so there is no sampling error; the number stands '
+                            'for the gap between the file\'s definitions and SOI\'s (the next bracket down, $5M-10M, has '
+                            'CVs of 0.6-2.9% on these items in 2019)'))
+            else:
+                out.append((r.Index, se, 'soi_cv', f'Table {table} CV, {how}{yr}' + (f'; {note}' if note else '')))
     return out
 
 
@@ -231,9 +235,8 @@ def scf_errors(rows, year):
     """The SCF targets (kinds 'wealth', 'wealth grid' and 'auto loans'): the standard errors scf_targets.py computed with their
     values, over the year's mix of SCF waves. They are recorded when target_list.expand builds the year's targets."""
     from reweight import scf_targets
-    keys = list(zip(rows['kind'], rows['group'], rows['target']))
     out = []
-    for i, k in zip(rows.index, keys):
+    for i, k in zip(rows.index, zip(rows['kind'], rows['group'], rows['target'])):
         assert k in scf_targets.RESULTS, f'SCF target {k}: not among the {year} targets'
         d = scf_targets.RESULTS[k]
         note = '' if abs(d['value'] - rows.loc[i, 'value']) <= 1e-9 * max(abs(d['value']), 1) else \
@@ -271,58 +274,12 @@ def cex_replicates(year, units):
     return rep
 
 
-def consumption_errors(rows, year):
-    """The consumption targets: each category's average per tax unit, over all units and by age range and marital
-    status, over the year's mix of CEX years. Each year's standard error comes from its 44 replicate weights, on
-    spending in target-year dollars; the years are independent samples, so the pooled variance is the sum of share^2
-    x each year's variance."""
-    from shared import survey_mix
-    parts = []
-    for y, share in survey_mix.mix('cex', year):
-        u = survey_mix.grown_units('cex', y)
-        parts.append((y, share, u, u['weight'].to_numpy(float), cex_replicates(y, u)))
-    out = []
-    for r in rows.itertuples():
-        g = r.group.split(', ', 1)[1]
-        var, value, notes = 0.0, 0.0, []
-        for y, share, u, w, rep in parts:
-            if g == 'all':
-                mu = np.ones(len(u), bool)
-            else:
-                m = re.fullmatch(r'age (.+), (married|not married)', g)
-                assert m, f'consumption target {r.group}: unknown cell'
-                mu = ((u['age_range'] == AGES.index(m.group(1))) & (u['married'] == int(m.group(2) == 'married'))).to_numpy()
-            assert mu.any(), f'consumption target {r.group}: no CEX {y} units in the cell'
-            v = u[r.target.split(',')[0]].to_numpy(float)
-            full = (w * v)[mu].sum() / w[mu].sum()
-            reps = (rep[mu] * v[mu, None]).sum(0) / rep[mu].sum(0)
-            var += share ** 2 * ((reps - full) ** 2).sum() / 44
-            value += share * full
-            notes.append(f'{y} {100 * share:.2f}%: {int(mu.sum())} unit rows')
-        note = '' if abs(value - r.value) <= 1e-9 * abs(r.value) else f'; pooled full-sample value {value:,.6g}, not {r.value:,.6g}'
-        out.append((r.Index, float(np.sqrt(var)), 'survey_replicate',
-                    'CEX year mix, replicate weights (44, BLS formula) year by year, variance = sum of share^2 x the '
-                    f'year\'s; {"; ".join(notes)}{note}'))
-    return out
-
-
-_IPUMS = {}
-
-
+@lru_cache(maxsize=None)
 def _ipums_fixed_width(folder, fields):
     """Columns of an IPUMS extract in fixed-width form (the .dat.gz and its DDI .xml in folder), read without ipumsr:
     each field's start, width and implied decimals from the DDI. Returns {field: float array}. Every character of
     every field read must be a digit (checked), so a blank or a sign cannot be misread. Read once per folder and
     field list (the overtime and age errors ask for the same columns of the same year)."""
-    key = (folder, tuple(fields))
-    if key not in _IPUMS:
-        _IPUMS[key] = _read_ipums_fixed_width(folder, fields)
-    return _IPUMS[key]
-
-
-def _read_ipums_fixed_width(folder, fields):
-    import gzip
-    import xml.etree.ElementTree as ET
     xml, = glob.glob(f'{folder}/*.xml')
     dat, = glob.glob(f'{folder}/*.dat.gz')
     root = ET.parse(xml).getroot()
@@ -355,9 +312,6 @@ def _read_ipums_fixed_width(folder, fields):
     return out
 
 
-CPS_REPLICATES = 160   # the ASEC's person replicate weights, successive difference replication
-
-
 def cps_replicates(year, units):
     """Each CPS tax unit's 160 replicate weights: its head's REPWTP1-REPWTP160 times the unit's weight over the head's
     ASECWT (1 where they agree). The head's PERNUM is the last two digits of the unit's record id. Read from the shared
@@ -365,7 +319,7 @@ def cps_replicates(year, units):
     from prep import build_table as BT
     folder = f"{common.RAW['cps_repwt']}/cps{year + 1}_03s"
     reps = [f'REPWTP{i}' for i in range(1, CPS_REPLICATES + 1)]
-    f = _ipums_fixed_width(folder, ['SERIAL', 'PERNUM', 'ASECWT'] + reps)
+    f = _ipums_fixed_width(folder, ('SERIAL', 'PERNUM', 'ASECWT', *reps))
     key = f['SERIAL'].astype(np.int64) * 100 + f['PERNUM'].astype(np.int64)
     assert len(np.unique(key)) == len(key), f'{folder}: SERIAL x 100 + PERNUM is not unique'
     order = np.argsort(key)
@@ -393,36 +347,79 @@ def cps_replicates(year, units):
     return W
 
 
+def year_mix_estimates(rows, year, source, units_of, replicates_of, cell_of):
+    """For each target row, each year of the survey's mix: (year, share, the cell's units, the full-sample estimate,
+    the replicate estimates). cell_of(row, units, year) gives the cell's units and each unit's value, or None for a
+    count of units. Returns [(row, [(year, share, in cell, full, replicates)])]."""
+    parts = []
+    for y, share in survey_mix.mix(source, year):
+        u = units_of(y)
+        parts.append((y, share, u, u['weight'].to_numpy(float), replicates_of(y, u)))
+    out = []
+    for r in rows.itertuples():
+        per = []
+        for y, share, u, w, rep in parts:
+            mu, v = cell_of(r, u, y)
+            if v is None:
+                full, reps = w[mu].sum(), rep[mu].sum(0)
+            else:
+                full, reps = (w * v)[mu].sum() / w[mu].sum(), (rep[mu] * v[mu, None]).sum(0) / rep[mu].sum(0)
+            per.append((y, share, mu, full, reps))
+        out.append((r, per))
+    return out
+
+
+def pooled_note(r, per):
+    """The pooled full-sample value against the target's, and a note where they differ."""
+    value = sum(share * full for _, share, _, full, _ in per)
+    return '' if abs(value - r.value) <= 1e-9 * abs(r.value) else f'; pooled full-sample value {value:,.6g}, not {r.value:,.6g}'
+
+
+def consumption_errors(rows, year):
+    """The consumption targets: each category's average per tax unit, over all units and by age range and marital
+    status, over the year's mix of CEX years. Each year's standard error comes from its 44 replicate weights, on
+    spending in target-year dollars; the years are independent samples, so the pooled variance is the sum of share^2
+    x each year's variance."""
+    def cell(r, u, y):
+        g = r.group.split(', ', 1)[1]
+        if g == 'all':
+            mu = np.ones(len(u), bool)
+        else:
+            m = re.fullmatch(r'age (.+), (married|not married)', g)
+            assert m, f'consumption target {r.group}: unknown cell'
+            mu = ((u['age_range'] == AGES.index(m.group(1))) & (u['married'] == int(m.group(2) == 'married'))).to_numpy()
+        assert mu.any(), f'consumption target {r.group}: no CEX {y} units in the cell'
+        return mu, u[r.target.split(',')[0]].to_numpy(float)
+    out = []
+    for r, per in year_mix_estimates(rows, year, 'cex', lambda y: survey_mix.grown_units('cex', y), cex_replicates, cell):
+        var = sum(share ** 2 * ((reps - full) ** 2).sum() / 44 for _, share, _, full, reps in per)
+        notes = [f'{y} {100 * share:.2f}%: {int(mu.sum())} unit rows' for y, share, mu, _, _ in per]
+        note = pooled_note(r, per)
+        out.append((r.Index, float(np.sqrt(var)), 'survey_replicate',
+                    'CEX year mix, replicate weights (44, BLS formula) year by year, variance = sum of share^2 x the '
+                    f'year\'s; {"; ".join(notes)}{note}'))
+    return out
+
+
 def overtime_errors(rows, year):
     """The CPS overtime targets: the share of units with overtime and overtime per unit, over all units and by the
     unit's wages, among units asked the earnings questions, over the year's mix of CPS years. Each year's variance is
     Census's successive difference replication formula, 4 / 160 x the sum over the replicates of (replicate estimate -
     full-sample estimate)^2; the years pool as independent samples."""
-    from shared import survey_mix
-    from reweight import target_list as TLS
-    parts = []
-    for y, share in survey_mix.mix('cps', year):
-        u = TLS.cps_overtime_units(y)
-        parts.append((y, share, u, u['weight'].to_numpy(float), cps_replicates(y, u)))
+    def cell(r, u, y):
+        if r.range_variable:
+            xg = TLS.record_value(u, r.range_variable)
+            mu = (xg >= r.range_lo) & (xg < r.range_hi)
+        else:
+            assert r.group.endswith(', all'), f'overtime target {r.group}: a cell other than all with no range'
+            mu = np.ones(len(u), bool)
+        assert mu.any(), f'overtime target {r.group}: no CPS {y} units in the cell'
+        return mu, TLS.record_value(u, r.variable)
     out = []
-    for r in rows.itertuples():
-        rng = (r.range_variable, r.range_lo, r.range_hi) if r.range_variable else None
-        var, value, notes = 0.0, 0.0, []
-        for y, share, u, w, rep in parts:
-            if rng:
-                xg = TLS.record_value(u, rng[0])
-                mu = (xg >= rng[1]) & (xg < rng[2])
-            else:
-                assert r.group.endswith(', all'), f'overtime target {r.group}: a cell other than all with no range'
-                mu = np.ones(len(u), bool)
-            assert mu.any(), f'overtime target {r.group}: no CPS {y} units in the cell'
-            v = TLS.record_value(u, r.variable)
-            full = (w * v)[mu].sum() / w[mu].sum()
-            reps = (rep[mu] * v[mu, None]).sum(0) / rep[mu].sum(0)
-            var += share ** 2 * 4 / CPS_REPLICATES * ((reps - full) ** 2).sum()
-            value += share * full
-            notes.append(f'{y} {100 * share:.2f}%: {int(mu.sum())} asked units')
-        note = '' if abs(value - r.value) <= 1e-9 * abs(r.value) else f'; pooled full-sample value {value:,.6g}, not {r.value:,.6g}'
+    for r, per in year_mix_estimates(rows, year, 'cps', TLS.cps_overtime_units, cps_replicates, cell):
+        var = sum(share ** 2 * 4 / CPS_REPLICATES * ((reps - full) ** 2).sum() for _, share, _, full, reps in per)
+        notes = [f'{y} {100 * share:.2f}%: {int(mu.sum())} asked units' for y, share, mu, _, _ in per]
+        note = pooled_note(r, per)
         out.append((r.Index, float(np.sqrt(var)), 'survey_replicate',
                     'CPS year mix, the ASEC\'s 160 person replicate weights (the unit head\'s), successive difference '
                     'replication (variance = 4/160 x sum of squared deviations) year by year, variance = sum of '
@@ -432,26 +429,16 @@ def overtime_errors(rows, year):
 
 def cps_age_errors(rows, year):
     """The CPS counts of units by the primary's age (kind 'older ages'), with standard errors as in overtime_errors."""
-    from shared import survey_mix
-    from reweight import target_list as TLS
-    parts = []
-    for y, share in survey_mix.mix('cps', year):
-        u = TLS.cps_age_units(y)
-        parts.append((y, share, u, u['weight'].to_numpy(float), cps_replicates(y, u)))
-    out = []
-    for r in rows.itertuples():
+    def cell(r, u, y):
         assert r.range_variable, f'older ages target {r.group}: no age range'
-        rng = (r.range_variable, r.range_lo, r.range_hi)
-        var, value, notes = 0.0, 0.0, []
-        for y, share, u, w, rep in parts:
-            xg = TLS.record_value(u, rng[0])
-            mu = (xg >= rng[1]) & (xg < rng[2])
-            full = w[mu].sum()
-            reps = rep[mu].sum(0)
-            var += share ** 2 * 4 / CPS_REPLICATES * ((reps - full) ** 2).sum()
-            value += share * full
-            notes.append(f'{y} {100 * share:.2f}%: {int(mu.sum())} sample units, se {np.sqrt(4 / CPS_REPLICATES * ((reps - full) ** 2).sum()):,.0f}')
-        note = '' if abs(value - r.value) <= 1e-9 * abs(r.value) else f'; pooled full-sample value {value:,.6g}, not {r.value:,.6g}'
+        xg = TLS.record_value(u, r.range_variable)
+        return (xg >= r.range_lo) & (xg < r.range_hi), None
+    out = []
+    for r, per in year_mix_estimates(rows, year, 'cps', TLS.cps_age_units, cps_replicates, cell):
+        var = sum(share ** 2 * 4 / CPS_REPLICATES * ((reps - full) ** 2).sum() for _, share, _, full, reps in per)
+        notes = [f'{y} {100 * share:.2f}%: {int(mu.sum())} sample units, se {np.sqrt(4 / CPS_REPLICATES * ((reps - full) ** 2).sum()):,.0f}'
+                 for y, share, mu, full, reps in per]
+        note = pooled_note(r, per)
         out.append((r.Index, float(np.sqrt(var)), 'survey_replicate',
                     'CPS year mix, the ASEC\'s 160 person replicate weights (the unit head\'s), successive difference '
                     'replication (variance = 4/160 x sum of squared deviations) year by year, variance = sum of '
@@ -468,15 +455,12 @@ def nonfiler_errors(rows, year):
         p = f'{common.DATA}/filing/checks/{y}_nonfilers_vs_targets.csv'   # the filing stage's checks
         if os.path.exists(p):
             return pd.read_csv(p).set_index('band')['census_adults']
-        from shared import growth as GR
-        from reweight import target_list as TLS
         have = TLS.cps_years()
         if y > max(have):
             return census(max(have)) * GR.population(y) / GR.population(max(have))
         lo, hi = TLS.cps_neighbours(y)
         return np.sqrt(census(lo) * census(hi))
-    need = rows.kind.eq('non-filer people').any()
-    t = census(year).to_frame('census_adults') if need else None
+    t = census(year).to_frame('census_adults') if rows.kind.eq('non-filer people').any() else None
     out = []
     for r in rows.itertuples():
         if r.kind == 'non-filers':
@@ -497,24 +481,28 @@ def nonfiler_errors(rows, year):
 
 
 # ---- the interface -----------------------------------------------------------------------------------
+# each error source's kinds of target
+SOURCES = [(soi_errors, ['IRS', 'age', 'age by AGI', 'age by status', 'status by AGI', 'business', 'dependent filers',
+                         'calculator']),
+           (scf_errors, ['wealth', 'wealth grid', 'auto loans']), (consumption_errors, ['consumption']),
+           (nonfiler_errors, ['non-filers', 'non-filer people']), (overtime_errors, ['overtime']),
+           (cps_age_errors, ['older ages'])]
+
+
 def standard_errors(rows, year):
     """One row per target of rows (target_list.expand's): kind, group, target, se, error_kind, se_reason. se is in the
     published statistic's units (the average itself for an average, the share for a share; the value column holds
     the published statistic). A kind this module does not know gets no error (error_kind 'none')."""
     rows = rows.reset_index(drop=True).assign(value=lambda d: d['value'].astype(float))
-    res = {}
     # a Table 2.1 target, or a calculator target on Table 4.3 or 2.5, has its error from its table already
     # (target_list.published_21, published_grid, published_25)
     grid_calc = rows['source'].astype(str).str.match(r'soi (4\.3|2\.5) ') & (rows.kind == 'calculator')
     table21 = rows['error_kind'].eq('table21') | grid_calc
-    by = {'soi': rows.kind.isin(['IRS', 'age', 'age by AGI', 'age by status', 'status by AGI', 'business', 'dependent filers', 'calculator']) & ~table21,
-          'scf': rows.kind.isin(['wealth', 'wealth grid', 'auto loans']), 'consumption': rows.kind == 'consumption',
-          'nonfiler': rows.kind.isin(['non-filers', 'non-filer people']), 'overtime': rows.kind == 'overtime',
-          'older ages': rows.kind == 'older ages'}
-    for name, f in [('soi', soi_errors), ('scf', scf_errors), ('consumption', consumption_errors),
-                    ('nonfiler', nonfiler_errors), ('overtime', overtime_errors), ('older ages', cps_age_errors)]:
-        if by[name].any():
-            for i, se, kind, why in f(rows[by[name]], year):
+    res = {}
+    for f, kinds in SOURCES:
+        m = rows.kind.isin(kinds) & ~table21
+        if m.any():
+            for i, se, kind, why in f(rows[m], year):
                 res[i] = (se, kind, why)
     out = rows[['kind', 'group', 'target']].copy()
     out['se'] = [res.get(i, (np.nan,))[0] for i in out.index]
@@ -527,4 +515,3 @@ def standard_errors(rows, year):
     m = rows['identity'].astype(bool)
     out.loc[m, ['se', 'error_kind', 'se_reason']] = [0.0, 'identity', 'an identity: hit exactly']
     return out
-
