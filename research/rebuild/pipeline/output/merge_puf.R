@@ -17,11 +17,11 @@
 #   6. the two rules: the taxable state refund times state_ref_multiplier (0 removed, 1 kept whole, in between the share
 #      the tax benefit rule keeps; only a multiplication, no tax calculation), then other income and taxable Social
 #      Security computed again (refund_rule); the AMT net operating loss adjustment held to the record's net operating
-#      loss (amt_cap); two added items computed from a PUF amount computed from the PUF items (puf_based);
+#      loss (amt_cap); and the two added items that are made from a PUF amount, computed from the PUF items (puf_based);
 #   7. the Tax-Simulator file's columns, then the records that are not PUF records, in the file's own order.
 # The deductible half of self-employment tax is not in the package and is no output column: the tax calculator
 # computes it from the self-employment income and wages (the working items carry the PUF's own E03260 grown).
-# Sums are added from left to right; Python's numpy may add some in another order, so the two scripts can differ in
+# Sums are added from left to right. Python's numpy may add some in another order, so the two scripts can differ in
 # the last binary digit on a few records.
 
 suppressPackageStartupMessages({
@@ -30,12 +30,15 @@ suppressPackageStartupMessages({
   library(arrow)
 })
 
-# ---- step 1: the 2015 items --------------------------------------------------------------------------------------
+# ---- Step 1: the 2015 items ----
+
+# The Schedule D net as it enters AGI: a net loss held to $3,000 ($1,500 on a separate return, status 3).
 allowed_capital_gain <- function(sched_d, filing_status) {
   limit <- ifelse(filing_status == 3, 1500, 3000)
   pmax(as.numeric(sched_d), -limit)
 }
 
+# A total from its parts, list(column = sign), summed in order.
 signed_sum <- function(d, parts) {
   acc <- 0
   for (p in names(parts)) acc <- acc + d[[p]] * parts[[p]]
@@ -65,6 +68,7 @@ part_se_from_schedule_se <- function(tax, capped, sch_cf, partnership) {
   ifelse(partnership | (beyond & !nothing), total - sch_cf, 0)
 }
 
+# Each record's 2015 items from the PUF's fields (items_2015 in merge_puf.py, which says the rules).
 items_2015 <- function(raw, spec, floor) {
   s <- spec$items
   agg <- raw$RECID >= 999996
@@ -116,13 +120,17 @@ items_2015 <- function(raw, spec, floor) {
   out
 }
 
+# Filing status, marriage and the three dependent counts from the PUF's fields, per record.
 puf_categories <- function(raw) {
   n_dep <- raw$XOCAH + raw$XOCAWH + raw$XOPAR + raw$XOODEP
   data.table(RECID = raw$RECID, filing_status = raw$MARS, married = as.integer(raw$MARS == 2),
              n_dep = pmin(n_dep, 3), n_dep_ctc = pmin(raw$N24, 3), n_dep_eitc = pmin(raw$EIC, 3))
 }
 
-# ---- step 2: the factors -----------------------------------------------------------------------------------------
+# ---- Step 2: the factors ----
+
+# Each item's 2015 amounts multiplied by its factors step by step: the factor for positive amounts on positive amounts
+# and the factor for negative amounts on negative ones; zero stays zero.
 grow <- function(base, fac) {
   out <- list()
   for (col in unique(fac$column)) {
@@ -140,7 +148,9 @@ grow <- function(base, fac) {
   out
 }
 
-# ---- step 5: the computed columns --------------------------------------------------------------------------------
+# ---- Step 5: the computed columns ----
+
+# Taxable Social Security by the section 86 worksheet (taxable_social_security in merge_puf.py, which says the rule).
 taxable_social_security <- function(ss, magi, filing_status, sp) {
   joint <- filing_status == 2
   base <- ifelse(joint, sp$joint[[1]], sp$single[[1]])
@@ -151,11 +161,14 @@ taxable_social_security <- function(ss, magi, filing_status, sp) {
   pmin(tier1 + tier2, sp$rates[[2]] * ss)
 }
 
+# The worksheet's modified AGI: AGI without taxable Social Security, plus tax-exempt interest and the student loan
+# interest deduction.
 magi_without_ss <- function(d, other) {
   without <- d$wages + d$txbl_int + d$dividends + d$capital_gains + other
   without + d$exempt_int + d$sl_int_ded
 }
 
+# The columns computed from the items, in the pipeline's order (derive in merge_puf.py).
 derive <- function(d, spec) {
   D <- spec$derive
   fs <- d$filing_status
@@ -209,7 +222,10 @@ derive <- function(d, spec) {
   d
 }
 
-# ---- step 6: the two rules ---------------------------------------------------------------------------------------
+# ---- Step 6: the two rules ----
+
+# The taxable state refund times the record copy's multiplier, then other income and taxable Social Security computed
+# again (refund_rule in merge_puf.py).
 refund_rule <- function(d, multiplier, spec) {   # merge_puf.refund_rule
   stopifnot(!anyNA(multiplier), all(multiplier >= 0), all(multiplier <= 1))
   ref <- d$state_ref
@@ -224,12 +240,14 @@ refund_rule <- function(d, multiplier, spec) {   # merge_puf.refund_rule
   d
 }
 
+# The AMT net operating loss adjustment held to the record's net operating loss (amt_cap in merge_puf.py).
 amt_cap <- function(d) {
   loss <- pmax(0, -d$other_agi_remainder)
   d$amt_nols <- pmin(d$amt_nols_drawn, loss)
   d
 }
 
+# The basis of long-term gains from the gain and the basis-to-sales ratio r (lt_basis in merge_puf.py).
 lt_basis <- function(kg, r) {
   b <- rep(0, length(kg))
   g <- kg > 0; l <- kg < 0
@@ -245,7 +263,9 @@ puf_based <- function(d, rec, spec) {   # merge_puf.puf_based
   d
 }
 
-# ---- step 7: the Tax-Simulator file's columns --------------------------------------------------------------------
+# ---- Step 7: the Tax-Simulator file's columns ----
+
+# The Tax-Simulator columns made from the record's items (formula in merge_puf.py).
 formula_column <- function(name, d) {
   share <- d$spouse_se_share
   if (name %in% c("sole_prop2", "farm2", "part_se2")) return(d[[sub("2$", "", name)]] * share)
@@ -267,6 +287,7 @@ formula_column <- function(name, d) {
   stop("unknown formula ", name)
 }
 
+# The Tax-Simulator file's columns for the PUF record copies, each by its rule in spec.json.
 tax_simulator_columns <- function(d, rec, spec) {
   n <- length(d$RECID)
   out <- list()
@@ -284,8 +305,11 @@ tax_simulator_columns <- function(d, rec, spec) {
   as.data.table(out[unlist(spec$taxsim$columns)])
 }
 
-# ---- the merge ---------------------------------------------------------------------------------------------------
+# ---- The merge ----
+
+# The year's Tax-Simulator file from the PUF at puf_path and the package folder pkg (merge in merge_puf.py).
 merge_puf <- function(puf_path, pkg) {
+  # Read the package and the PUF records it uses.
   spec <- fromJSON(file.path(pkg, "spec.json"), simplifyVector = FALSE)
   fac <- as.data.frame(read_parquet(file.path(pkg, "factors.parquet")))
   rec <- as.data.table(read_parquet(file.path(pkg, "records.parquet")))
@@ -295,14 +319,17 @@ merge_puf <- function(puf_path, pkg) {
   floor <- rec[, .(medical_floor = medical_floor[1]), by = RECID]
   raw <- raw[RECID %in% floor$RECID]
   stopifnot(nrow(raw) == nrow(floor))
+  # Step 1: the 2015 items.
   x15 <- items_2015(raw, spec, floor$medical_floor[match(raw$RECID, floor$RECID)])
   at <- match(rec$RECID, x15$RECID)
   base <- x15[at]
-  # the merged record copies as a list of columns (assignment into a list does not copy the other columns)
+  # Step 2: the record copies, each PUF item grown by its factors. The merged record copies are kept as a list of
+  # columns, because assigning into a list does not copy the other columns.
   d <- list(RECID = rec$RECID, copy = rec$copy)
   n <- length(d$RECID)
   grown <- grow(base, fac)
   for (c in unlist(spec$factor_columns)) d[[c]] <- grown[[c]]
+  # Step 3: the weight. Then the filing status and dependents, and (step 4) the added items and the constants.
   w15 <- as.numeric(raw$S006)[match(rec$RECID, raw$RECID)] / 100
   d$weight <- w15 * rec$weight_factor
   cats <- puf_categories(raw)[match(rec$RECID, raw$RECID)]
@@ -311,10 +338,12 @@ merge_puf <- function(puf_path, pkg) {
   for (c in unlist(spec$imputed)) d[[c]] <- rec[[c]]
   for (c in names(spec$constants)) d[[c]] <- rep(spec$constants[[c]], n)
   d$record_id <- spec$real_id_base + (d$copy - 1) * spec$copy_block + d$RECID
+  # Steps 5 and 6: the computed columns and the two rules.
   d <- derive(d, spec)
   d <- refund_rule(d, as.numeric(rec$state_ref_multiplier), spec)
   d <- amt_cap(d)
   d <- puf_based(d, rec, spec)
+  # Step 7: the Tax-Simulator columns; then the other records, in the file's order.
   t <- tax_simulator_columns(d, rec, spec)
   t[, row := rec$row]
   t <- t[weight > 0]
@@ -326,8 +355,8 @@ merge_puf <- function(puf_path, pkg) {
   list(out = out, spec = spec)
 }
 
+# Each number as text with the fewest digits (15 or 17) that read back as the same number.
 shortest <- function(x) {
-  # the fewest digits (15 or 17) that read back as the same number
   s <- sprintf("%.15g", x)
   bad <- !is.na(x) & as.numeric(s) != x
   s[bad] <- sprintf("%.17g", x[bad])
@@ -335,6 +364,8 @@ shortest <- function(x) {
   s
 }
 
+# The file as text in the form the Tax-Simulator file uses: NA for missing, TRUE/FALSE flags, whole numbers without
+# a decimal point.
 write_text <- function(g, path, spec) {
   t <- copy(g)
   tx <- spec$taxsim
@@ -347,6 +378,8 @@ write_text <- function(g, path, spec) {
   for (c in names(t)) if (is.numeric(t[[c]])) t[[c]] <- shortest(t[[c]])
   fwrite(t, path, na = "NA", quote = "auto")
 }
+
+# ---- Run as a script ----
 
 args <- commandArgs(trailingOnly = TRUE)
 if (length(args) == 3) {
