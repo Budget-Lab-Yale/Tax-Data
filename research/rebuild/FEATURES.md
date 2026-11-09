@@ -447,27 +447,28 @@ their answer; zero-reporters are filled in). The PUF has only the PUF-concept sl
 - In the held-back slice no fill-in is drawn, so a zero-reporter's PUF-concept amount there is not scored.
 - At generation the reported slots stay hidden; net worth is drawn given the PUF-concept amounts.
 
-Share of units with any, after training (installed seed-20261017 network, `model/<run>/fill_log.csv`):
+Share of units with any, after the 80th pass of the installed seed-20261017 network (`model/<run>/fill_log.csv`):
 
 | Survey and item | Reported | After the fill-in | Tax data at the survey's types |
 |---|---:|---:|---:|
-| SCF 2018 wages | 72.3% | 77.6% | 77.0% |
-| SCF 2018 taxable interest | 11.6% | 24.9% | 26.0% |
-| SCF 2018 dividends | 10.4% | 17.0% | 18.8% |
-| SCF 2018 capital gains | 7.4% | 14.2% | 14.7% |
-| SCF 2018 Schedules C and F | 10.7% | 17.7% | 20.7% |
-| SCF 2018 rental income | 6.4% | 9.7% | 7.6% |
-| SCF 2018 rest of Schedule E | 5.4% | 8.4% | 7.3% |
-| CEX 2019 wages | 75.4% | 79.5% | 77.6% |
-| CEX 2019 self-employment | 11.4% | 22.6% | 22.0% |
-| CPS 2019 wages | 73.8% | 74.1% | 77.3% |
-| CPS 2019 dividends | 15.6% | 18.8% | 19.0% |
-| CPS 2019 pensions | 15.8% | 16.7% | 24.4% |
-| CPS 2019 unemployment | 2.0% | 4.1% | 4.1% |
-| CPS 2019 Schedule C | 7.1% | 15.6% | 20.7% |
-| SIPP 2019 wages | 69.5% | 78.3% | 77.1% |
-| SIPP 2019 dividends | 14.0% | 20.5% | 19.5% |
-| SIPP 2019 pensions | 13.6% | 22.4% | 21.7% |
+| SCF 2018 wages | 72.3% | 77.2% | 76.3% |
+| SCF 2018 taxable interest | 11.6% | 24.8% | 25.9% |
+| SCF 2018 dividends | 10.4% | 17.2% | 19.4% |
+| SCF 2018 capital gains | 7.4% | 14.0% | 14.7% |
+| SCF 2018 tax-exempt interest | 2.1% | 4.1% | 3.7% |
+| SCF 2018 Schedules C and F | 10.7% | 18.8% | 22.0% |
+| SCF 2018 rental income | 6.4% | 9.6% | 7.6% |
+| SCF 2018 rest of Schedule E | 5.4% | 8.0% | 7.3% |
+| CEX 2019 wages | 75.4% | 79.3% | 76.8% |
+| CEX 2019 self-employment | 11.4% | 23.8% | 23.2% |
+| CPS 2019 wages | 73.8% | 74.0% | 76.5% |
+| CPS 2019 dividends | 15.6% | 21.5% | 19.5% |
+| CPS 2019 pensions | 15.8% | 24.9% | 25.5% |
+| CPS 2019 unemployment | 2.0% | 4.3% | 4.1% |
+| CPS 2019 Schedule C | 7.1% | 14.3% | 22.0% |
+| SIPP 2019 wages | 69.5% | 78.0% | 76.3% |
+| SIPP 2019 dividends | 14.0% | 21.3% | 20.2% |
+| SIPP 2019 pensions | 13.6% | 23.4% | 22.9% |
 
 88.6% of CPS units without wages say nobody worked any week, so the CPS's wage fill-in barely moves.
 
@@ -524,8 +525,8 @@ across networks):
   p50). Each record starts with its group label set; everything else is drawn given it. Its weight is the group's
   2015 returns over the records drawn in it (1/q of the group), which undoes training's grouped weighting. Every drawn
   record is kept. Each record's band-AGI group is computed from its drawn bands and compared with its label
-  (`gen/<run>/label_check.csv`, stack columns `q_group` and `label_ok`); the weight follows the label. About 14% of
-  filer records have parts adding to another group.
+  (`gen/<run>/label_check.csv`, stack columns `q_group` and `label_ok`); the weight follows the label. About 15% of
+  filer records in 2019 have parts adding to another group.
 - **Non-filers**, under the CPS label at the target year (filing flag 0). Records = filer records x the CPS's expected
   non-filers (sum over its units of weight x (1 - `filer_p`)) / SOI returns. In a year with no CPS (even years) the
   count is the geometric mean of the CPS years either side and the batch is drawn half at each. A PUF amount the CPS
