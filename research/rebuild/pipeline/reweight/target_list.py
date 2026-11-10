@@ -29,6 +29,7 @@ from shared import growth as GR
 from shared import survey_mix
 from prep import soi as TG
 from reweight import errors
+from reweight import sparse_table
 from scale import projection_demographics as PD
 from scale import projection_growth as PG
 from scale import projection_steps as PS
@@ -1641,7 +1642,7 @@ def expand(year, start, which):
     is_must = np.array([(en, str(g)) in must for en, g in zip(rows['entry'], rows['group'])], bool)
     if len(rows):   # a year with no calculator entries has no rows to check
         F, _, _ = conditions(start, rows, None, check=False)
-        reach = (F != 0).any(0) | rows['statistic'].isin(['average', 'share', 'worker share']).to_numpy()
+        reach = sparse_table.reached(F) | rows['statistic'].isin(['average', 'share', 'worker share']).to_numpy()
         excluded = pd.concat([excluded, rows[~reach].assign(why='no record can reach it')], ignore_index=True)
         dead = rows[~reach & is_must]
         assert dead.empty, f'targets that must be kept (must_reach) and no record can reach:\n{dead[["kind", "group", "target"]]}'
@@ -1692,14 +1693,15 @@ def _cached_value(values, df, name):
 def _put_average(F, T, averages, j, member, v, m):
     """Writes target j, "the average of v over member is m", as the condition: the sum over member of w (v / m - 1)
     equals 0."""
-    F[:, j] = member * (v / m - 1.0)
+    F.put(j, member * (v / m - 1.0))
     T[j] = 0.0
     averages[j] = (member, v, m)
 
 
 def conditions(df, rows, w_start, check=True):
     """Writes each target as a linear condition on the weights of the file df. Returns F (records by targets), T and
-    averages. The target in row j is met when F[:, j] @ w == T[j].
+    averages. The target in row j is met when F[:, j] @ w == T[j]. F is a sparse matrix: it stores only the entries
+    that are not zero (sparse_table.py).
 
     For an average or a share, averages[j] = (member, v, m), meaning "the average of v over the records in member is
     m", and the condition is written as: the sum over member of w (v / m - 1) equals 0. A share is the average of a
@@ -1721,7 +1723,7 @@ def conditions(df, rows, w_start, check=True):
     ws = np.asarray(w_start, float) if w_start is not None else \
         df['weight'].to_numpy(float) if 'weight' in df else np.ones(len(df))
     values = {}
-    F = np.zeros((len(df), len(rows)))
+    F = sparse_table.Columns(len(df), len(rows))
     T = rows['value'].to_numpy(float).copy()
     averages = [None] * len(rows)
 
@@ -1766,7 +1768,7 @@ def conditions(df, rows, w_start, check=True):
             xl = _cached_value(values, df, r.line_variable)
             line = ((xl <= r.line_hi) & ((xl > r.line) if not np.isnan(r.line) else True)).astype(float)
         if r.statistic == 'units':
-            F[:, j] = cell
+            F.put(j, cell)
             if r.dependent_filers:
                 # Table 1.6's dependent filers aged 26 and over are spread over this status's age ranges in proportion
                 # to the entry's own values. For an entry by AGI group and not by status, they are spread over the
@@ -1779,19 +1781,19 @@ def conditions(df, rows, w_start, check=True):
                 if not np.isnan(r.agi_lo):
                     same &= (rows['agi_lo'] == r.agi_lo) & (rows['agi_hi'] == r.agi_hi)
                     dep_26 &= (a >= r.agi_lo) & (a < r.agi_hi)
-                F[:, j] += dep_26 * r.value / rows.loc[same, 'value'].sum()
+                F.add(j, dep_26 * r.value / rows.loc[same, 'value'].sum())
         elif r.statistic == 'count':
             count_var = variable_def(r.variable).get('count_variable')
             xc = _cached_value(values, df, count_var) if count_var else x
             # SOI Table 2.1 counts returns claiming a positive category amount.
             pos = r.variable in ('itemized_medical', 'itemized_taxes', 'itemized_interest', 'itemized_charity',
                                      'itemized_charity_cash', 'itemized_charity_noncash')
-            F[:, j] = cell * ((xc > 0) if pos else (xc != 0)) * (1.0 if line is None else line)
+            F.put(j, cell * ((xc > 0) if pos else (xc != 0)) * (1.0 if line is None else line))
         elif r.statistic == 'amount':
-            F[:, j] = cell * x * (1.0 if line is None else line)
+            F.put(j, cell * x * (1.0 if line is None else line))
         elif r.statistic == 'workers':
             # A count of workers: the people (primary filer and spouse) with a positive value of the variable.
-            F[:, j] = cell * (person_values(df, r.variable) > 0).sum(1)
+            F.put(j, cell * (person_values(df, r.variable) > 0).sum(1))
         elif r.statistic == 'worker share':
             # The share of workers (people with a positive value) whose value is above the dollar line r.line. Let n be
             # a record's number of workers and a the number above the line. The share s is met when
@@ -1812,10 +1814,12 @@ def conditions(df, rows, w_start, check=True):
         else:
             raise NotImplementedError(r.statistic)
     # 3. Check that every target can be reached by a record with a positive starting weight.
+    del values, pops
+    F = F.table()
     if check:
         live = np.ones(len(df), bool) if w_start is None else np.asarray(w_start) > 0
-        dead = [f'{k} | {g} | {t}' for k, g, t, f in zip(rows['kind'], rows['group'], rows['target'], (F[live] != 0).any(0))
-                if not f]
+        dead = [f'{k} | {g} | {t}' for k, g, t, f in zip(rows['kind'], rows['group'], rows['target'],
+                                                         sparse_table.reached(F, live)) if not f]
         assert not dead, f'targets no record can reach (expand with start= leaves them out): {dead}'
     return F, T, averages
 

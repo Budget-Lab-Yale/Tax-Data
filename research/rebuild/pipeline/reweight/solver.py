@@ -22,9 +22,15 @@ quadratic's minimum. It stops when the gradient is close to zero. _solve gives t
 
 fit_table measures how close each target comes and how many records each target rests on. FEATURES.md,
 "5. Reweighting", "The solve", describes the settings.
+
+The table of conditions F comes in one of two forms. The year's full table is a sparse matrix, which stores only the
+entries that are not zero (sparse_table.py). A small table, such as the prescaling's, is an ordinary numpy array. The
+solver computes the same quantities from either form.
 """
 import numpy as np
 import pandas as pd
+
+from reweight import sparse_table as ST
 
 
 # A count of what Newton's method did in the last solve: the steps taken over every call (the step budget applies to
@@ -47,9 +53,11 @@ def _conditions(w0, F, T, averages, offset=None, extra=None, size_of=None):
     When some records are held fixed (solve's fixed argument), T is the target less the fixed records' contribution,
     offset[j] is the right-hand side of average j's condition, extra[j] is the fixed records' weight in average j's
     group, and size_of holds the full targets. Each condition then keeps the size it has on the whole file."""
-    G, Tl = F.copy(), T.copy()
+    sparse = ST.is_sparse(F)
+    G, Tl = (None if sparse else F.copy()), T.copy()
     member = [None] * len(T)
     size = np.abs(T if size_of is None else size_of).astype(float)
+    new = {}   # for a sparse table: the columns of the averages, put in place of F's below
     for j, a in enumerate(averages):
         if a is None:
             continue
@@ -57,14 +65,22 @@ def _conditions(w0, F, T, averages, offset=None, extra=None, size_of=None):
         mem = np.asarray(mem, bool)
         v = np.asarray(v, float)
         assert np.isfinite(v[mem]).all(), f'target {j}: a missing value in an average'
-        G[:, j] = mem * (v - m)
+        if sparse:
+            new[j] = mem * (v - m)
+        else:
+            G[:, j] = mem * (v - m)
         Tl[j] = 0.0 if offset is None else offset[j]
         member[j] = mem
         size[j] = abs(m) * (w0[mem].sum() + (0.0 if extra is None else extra[j]))
+    if sparse:
+        G = ST.with_columns(F, new)
     # A condition whose target is zero (an average of zero, a count of zero) is sized by the starting weight it rests
     # on.
     zero = size == 0
-    size[zero] = np.abs(G[:, zero]).T @ w0
+    if sparse and zero.any():   # these few columns are written out in full
+        size[zero] = np.abs(G[:, np.flatnonzero(zero)].toarray(order='F')).T @ w0
+    elif not sparse:
+        size[zero] = np.abs(G[:, zero]).T @ w0
     assert (size > 0).all(), f'targets {np.flatnonzero(size == 0).tolist()}: no record contributes to them'
     return G, Tl, size, member
 
@@ -156,8 +172,12 @@ def _newton(X, t, p, s2, lam, max_steps, tol, soft=None):
         # The Hessian is X' diag(e) X, plus s2 on the diagonal. The first part is computed as Y'Y, where Y is X with
         # each record's row multiplied by the square root of its e. The two are the same matrix. Numpy computes the
         # product of a matrix with itself faster than a general product.
-        Y = X * np.sqrt(e)[:, None]
-        H = Y.T @ Y
+        # For a sparse table the product is added up over blocks of records (sparse_table.weighted_square).
+        if ST.is_sparse(X):
+            H = ST.weighted_square(X, e)
+        else:
+            Y = X * np.sqrt(e)[:, None]
+            H = Y.T @ Y
         H[np.diag_indices(m)] += s2
         return H
 
@@ -234,14 +254,14 @@ def _solve(w0, F, T, se, identity, averages, settings, offset=None, extra=None, 
     tol = float(cfg.get('gradient_tolerance', 1e-8))
     avg_change = float(cfg.get('average_weight_change', 1e-3))
     w0 = np.asarray(w0, float)
-    F = np.asarray(F, float)
+    F = F if ST.is_sparse(F) else np.asarray(F, float)
     T = np.asarray(T, float)
     se = np.asarray(se, float)
     identity = np.asarray(identity, bool)
     n, m = F.shape
     assert w0.shape == (n,) and T.shape == se.shape == identity.shape == (m,) and len(averages) == m
     assert np.isfinite(w0).all() and (w0 >= 0).all() and w0.sum() > 0, 'starting weights must be finite and >= 0'
-    assert np.isfinite(F).all() and np.isfinite(T).all(), 'a missing value in F or T'
+    assert ST.all_finite(F) and np.isfinite(T).all(), 'a missing value in F or T'
     bad = ~identity & ~(np.isfinite(se) & (se > 0))
     assert not bad.any(), f'targets {np.flatnonzero(bad).tolist()}: not identities, but no positive standard error'
     rho = settings.get('solver_importance')
@@ -249,9 +269,15 @@ def _solve(w0, F, T, se, identity, averages, settings, offset=None, extra=None, 
     assert rho.shape == (m,) and np.isfinite(rho).all() and (rho > 0).all(), 'solver_importance: m positive numbers'
     NEWTON.update({'steps': 0, 'calls': 0, 'capped_calls': 0})
     X, Tl, size, member = _conditions(w0, F, T, averages, offset, extra, size_of)
+    del F   # the solve works on X from here; a table made for the free records alone is let go
     W = w0.sum()
     p = w0 / W
-    X *= W / size      # X is a copy of F made by _conditions, so it is scaled in place
+    # X is a copy of F made by _conditions, and it is scaled in place. A sparse table is then put in the layout by
+    # row, which Newton's method works through in blocks of records.
+    if ST.is_sparse(X):
+        X = ST.scale_columns(X, W / size).tocsr()
+    else:
+        X *= W / size
     t = Tl / size
     is_avg = np.array([mm is not None for mm in member])
     free = ~identity
@@ -300,7 +326,7 @@ def solve(w0, F, T, se, identity, averages, settings, fixed=None):
     """The reweighting. Returns the new weights and a dict that describes the solve and how far the weights moved.
 
     - w0: the starting weights.
-    - F: a matrix of records by targets. Target j is met when F[:, j] @ w == T[j].
+    - F: a matrix of records by targets, sparse or an ordinary array. Target j is met when F[:, j] @ w == T[j].
     - se: each target's standard error, in the units of the published statistic (for an average or share, of the
       average itself).
     - identity: True where the target holds exactly by definition.
@@ -310,7 +336,8 @@ def solve(w0, F, T, se, identity, averages, settings, fixed=None):
     - fixed: None, or a mask of records whose weights stay exactly at w0. Their contribution enters each condition as
       a constant, and only the other weights are solved for."""
     w0 = np.asarray(w0, float)
-    F = np.asarray(F, float)
+    sparse = ST.is_sparse(F)
+    F = F if sparse else np.asarray(F, float)
     T = np.asarray(T, float)
     m = len(T)
     if fixed is None or not np.asarray(fixed, bool).any():
@@ -321,7 +348,7 @@ def solve(w0, F, T, se, identity, averages, settings, fixed=None):
         assert fixed.shape == w0.shape and (~fixed).any(), 'fixed: one flag per record, and some records free'
         assert np.isfinite(w0[fixed]).all() and (w0[fixed] >= 0).all(), 'fixed records: weights finite and >= 0'
         wf, free_ = w0[fixed], ~fixed
-        T_free = T - F[fixed].T @ wf
+        T_free = T - (F.T @ np.where(fixed, w0, 0.0) if sparse else F[fixed].T @ wf)
         offset, extra = np.zeros(m), np.full(m, np.nan)
         av_free = [None] * m
         for j, a in enumerate(averages):
@@ -338,7 +365,8 @@ def solve(w0, F, T, se, identity, averages, settings, fixed=None):
         sup = settings.get('solver_soft_upper')
         if sup is not None:
             settings_free = {**settings, 'solver_soft_upper': np.asarray(sup, float)[free_]}
-        w1f, info = _solve(w0[free_], F[free_], T_free, se, identity, av_free, settings_free, offset, extra, np.abs(T))
+        w1f, info = _solve(w0[free_], ST.records(F, free_) if sparse else F[free_], T_free, se, identity, av_free,
+                           settings_free, offset, extra, np.abs(T))
         w1 = w0.copy()
         w1[free_] = w1f
         mv = move(w0[free_], w1f)
@@ -355,15 +383,17 @@ def fixed_feasibility(w0, F, T, se, identity, averages, fixed):
     amount with the signs their contributions have. The target is reachable when what is left has one of those signs or
     is zero. 'billionaires alone exceed' marks a total that the other records can only add to and that the fixed
     records alone already put above its value. Each target is checked on its own."""
-    w0, F, T = (np.asarray(a, float) for a in (w0, F, T))
+    w0, T = np.asarray(w0, float), np.asarray(T, float)
+    F = F if ST.is_sparse(F) else np.asarray(F, float)
     fixed = np.asarray(fixed, bool)
     free = ~fixed
     rows = []
     for j in range(len(T)):
         a = averages[j]
         if a is None:
-            f = F[free, j]
-            contrib = float(F[fixed, j] @ w0[fixed])
+            col = ST.column(F, j)
+            f = col[free]
+            contrib = float(col[fixed] @ w0[fixed])
             rem = float(T[j] - contrib)
             fixed_w = np.nan
         else:
@@ -438,7 +468,7 @@ def thin_cells(w0, w1, F, averages, factors=True):
     factor = np.where(w0 > 0, w1 / np.where(w0 > 0, w0, 1.0), 0.0)
     for j0 in range(0, m, BLOCK):
         j1 = min(j0 + BLOCK, m)
-        C = np.array(F[:, j0:j1], float)
+        C = ST.block(F, j0, j1)
         for j in range(j0, j1):
             if averages[j] is not None:
                 mem, v, _ = averages[j]
@@ -488,7 +518,7 @@ def _per_target(w0, w1, F, T, se, identity, averages):
     zero = size == 0
     for j in np.flatnonzero(zero):   # a condition whose target is zero is sized by the starting weight it rests on
         a = averages[j]
-        col = F[:, j] if a is None else np.asarray(a[0], bool) * (np.asarray(a[1], float) - a[2])
+        col = ST.column(F, j) if a is None else np.asarray(a[0], bool) * (np.asarray(a[1], float) - a[2])
         size[j] = np.abs(col) @ w0
     miss = after - value
     se = np.asarray(se, float)
@@ -533,7 +563,8 @@ def fit_table(w0, w1, F, T, se, averages, cells, identity=None):
     the effective number of records under the starting weights; and a suggested merge. The effective records under
     the starting weights show whether a thin cell was already thin before the reweighting. Identities are the targets
     with a standard error of zero, unless identity is given."""
-    w0, w1, F, T, se = (np.asarray(a, float) for a in (w0, w1, F, T, se))
+    w0, w1, T, se = (np.asarray(a, float) for a in (w0, w1, T, se))
+    F = F if ST.is_sparse(F) else np.asarray(F, float)
     averages = list(averages) if averages is not None else [None] * len(T)
     identity = ~(se > 0) if identity is None else np.asarray(identity, bool)
     per = _per_target(w0, w1, F, T, se, identity, averages)

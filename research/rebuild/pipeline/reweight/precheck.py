@@ -14,6 +14,8 @@ where the check sits.
 import numpy as np
 import pandas as pd
 
+from reweight import sparse_table as ST
+
 
 def _start_values(F, w0, averages):
     """Each target's value on the starting weights. For a total this is F.T @ w0. For an average it is the weighted
@@ -63,11 +65,11 @@ def run(rows, F, w0, averages, value, se, identity, folder, cfg):
         ia, ic = st['amount'], st['count']
         if averages[ia] is not None or averages[ic] is not None or value[ic] == 0 or value[ia] == 0:
             continue
-        cnt = F[:, ic]
+        cnt = ST.column(F, ic)
         inside = (cnt != 0) & live
         if not inside.any():
             continue
-        per_return = F[inside, ia] / cnt[inside]
+        per_return = ST.column(F, ia)[inside] / cnt[inside]
         implied = value[ia] / value[ic]
         tol = float(np.hypot(se[ia] / abs(value[ia]), se[ic] / abs(value[ic])))
         lo, hi = float(per_return.min()), float(per_return.max())

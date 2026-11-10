@@ -51,8 +51,11 @@ import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 import scipy.linalg as sl
+import scipy.sparse as sp
 
+from shared import common
 from reweight import solver as SV
+from reweight import sparse_table
 from reweight import state_targets as ST
 from reweight import state_weights as SW
 
@@ -76,14 +79,16 @@ def national_setup(w0, F, T, se, identity, averages, fixed, rho):
     """The national targets in the form the solve uses. Records that are held fixed (the Forbes list) are taken out:
     their amounts are subtracted from the targets, as solver.solve does. Each target's record amounts are divided by
     the target's size, on the same scale as solver._solve. Returns the scaled record amounts X (free records by
-    targets), the scaled targets t, the standard errors, and what the targets that are averages need."""
+    targets), the scaled targets t, the standard errors, and what the targets that are averages need. F and X are
+    sparse matrices, which store only the entries that are not zero (sparse_table.py); X is in the layout by row."""
+    F = sp.csc_matrix(F)
     fixed = np.asarray(fixed, bool)
     free = ~fixed
     m = len(T)
     averages = list(averages) if averages is not None else [None] * m
     if fixed.any():
         wf = w0[fixed]
-        T_free = T - F[fixed].T @ wf
+        T_free = T - sparse_table.records(F, fixed).toarray(order='C').T @ wf   # the few fixed records, written out in full
         offset, extra = np.zeros(m), np.full(m, np.nan)
         av_free = [None] * m
         for j, a in enumerate(averages):
@@ -97,9 +102,9 @@ def national_setup(w0, F, T, se, identity, averages, fixed, rho):
         size_of = np.abs(T).astype(float)
     else:
         T_free, offset, extra, av_free, size_of = T, None, None, averages, None
-    G, Tl, size, member = SV._conditions(w0[free], F[free], T_free, av_free, offset, extra, size_of)
+    G, Tl, size, member = SV._conditions(w0[free], sparse_table.records(F, free), T_free, av_free, offset, extra, size_of)
     W = float(w0[free].sum())
-    X = G * (W / size)
+    X = sparse_table.scale_columns(G, W / size).tocsr()
     del G
     is_avg = np.array([mm is not None for mm in member])
     return dict(free=free, W=W, X=X, t=Tl / size, size=size, member=member, is_avg=is_avg, extra=extra, se=np.asarray(se, float),
@@ -119,7 +124,8 @@ class Joint:
     weights are shares of the free records' total starting weight W, and each target is divided by its size.
 
     Inputs. w0_free: the free records' starting weights. P0 [records, areas]: their starting shares. nat: the national
-    targets from national_setup. groups: one dict for each AGI group of filers and one for the non-filers, holding rows
+    targets from national_setup; each group keeps its records' rows of X, with the targets its records reach, written
+    out in full (a group reaches about half the targets, and the groups' tables together take about 2 GB). groups: one dict for each AGI group of filers and one for the non-filers, holding rows
     (the group's records among the free records), Z [records in the group, items] (the state items), T, se, share and
     fixed [areas, items] (the state targets at the starting weights, NaN where there is none; their standard errors;
     the IRS's shares; the amounts that fixed records already put there), and size [items] (the scale of each item's
@@ -141,7 +147,7 @@ class Joint:
         for g in groups:
             r = g['rows']
             Xg = nat['X'][r]
-            cols = np.flatnonzero((Xg != 0).any(0))
+            cols = np.flatnonzero(sparse_table.reached(Xg))
             scale = self.W / g['size']
             Z = g['Z'] * scale[None, :]
             have = (Z != 0).any(0)
@@ -172,7 +178,7 @@ class Joint:
             yrows, zrows = n_aux + np.arange(K), n_aux + K + np.arange(K)
             n_aux += 2 * K
             dense = np.concatenate([cols, self.mN + yrows, self.mN + zrows])
-            self.groups.append(dict(rows=r, X=Xg[:, cols].copy(), cols=cols, Z=Z, Z2=Z[:, iu] * Z[:, ju], iu=iu, ju=ju, P=(w0_free[r, None] / self.W) * P0[r],
+            self.groups.append(dict(rows=r, X=Xg[:, cols].toarray(order='C'), cols=cols, Z=Z, Z2=Z[:, iu] * Z[:, ju], iu=iu, ju=ju, P=(w0_free[r, None] / self.W) * P0[r],
                                     p=self.p_rec[r], mask=mask, pos=pos, t=t, nu=nu, share=share, c=c_all[r], U=U_s[r],
                                     yrows=yrows, zrows=zrows, dense=dense))
         self.mS, self.mA = n_state, n_aux
@@ -852,6 +858,7 @@ def main():
     year = a.year
     tolerance, tau = c['tolerance'], float(c['tau'])
     t_all = time.time()
+    common.return_large_blocks()
 
     # 1. Read the year's file, the saved inputs of the national targets, Historic Table 2 and the starting chances of
     #    the states.
@@ -867,18 +874,24 @@ def main():
     table.to_csv(f'{od}/nonfiler_states.csv')
     tgn.to_csv(f'{od}/nonfiler_targets.csv', index=False)
 
-    # 3. Set up the joint problem. The full matrix of national record amounts is kept aside for the fit table and
-    #    released from the problem, which holds its own copy by group.
+    # 3. Set up the joint problem. The table of national conditions is kept aside for the fit table. The scaled
+    #    record amounts are released from the problem, which holds its own copy by group.
     cfg = inp['reweighting']
     J, nat, free = joint_problem(w0, fixed, inp, P0, specs, tau, cfg, year, t_all)
     F = inp.pop('F')
     nat['X'] = None
+    common.release_memory()
 
     # 4. Solve.
     lam, fields, info, within_near = run_solve(J, c, cfg, year)
 
     # 5. The weights: each record's area weights, national weight and shares across the areas.
     wis, w1, Q, sum_err = area_weights(J, fields, w0, P0, free, fixed, year)
+    # The solve's own arrays are not needed again: the weights by group, the factored Newton system and each group's
+    # record amounts.
+    del fields
+    J.F, J.groups = None, None
+    common.release_memory()
 
     # 6. The national fit (solver.py's table, written to fit.csv) and how far the weights moved.
     nfit = SV.fit_table(w0, w1, F, np.asarray(inp['T'], float), np.asarray(inp['se'], float), inp['averages'], inp['rows'], np.asarray(inp['identity'], bool))

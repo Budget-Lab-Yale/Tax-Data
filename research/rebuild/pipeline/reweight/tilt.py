@@ -35,6 +35,7 @@ from reweight import target_list as TLS
 from prep import soi as TG
 from reweight import taxes as TX
 from reweight import precheck as PRE
+from reweight import sparse_table
 from reweight import scf_targets
 from shared.common import TARGET_YEAR as Y, wquantile
 
@@ -58,26 +59,36 @@ def cost(w0, w1):
 
 # ---- The start and its scaling ----
 
-def top_of_file(g19, raw, imp, spec):
-    """Adds the top of the file (top_records.py, settings tilt.top): the rebuilt returns that the PUF hides at the very
-    top, the balance sheets redrawn at $1 billion or more, and the Forbes list. This happens before any target or
-    scaling. For a start made of generated records, the part that uses the network has already run on a GPU in the
-    top stage, and its result is read from the top cache. A start from an earlier year's file runs that part here.
+def start_with_top(spec):
+    """Builds the start (start.year_start) and adds the top of the file (top_records.py, settings tilt.top): the
+    rebuilt returns that the PUF hides at the very top, the balance sheets redrawn at $1 billion or more, and the
+    Forbes list. This happens before any target or scaling.
+
+    For a start made of generated records, the top stage has already built the start and run the part that uses the
+    network on a GPU. Its result, the start with that part added, is read from the top cache, and the start is not
+    built again here. A start from an earlier year's file is built here, and that part runs here.
 
     Returns the records, their weights, given (the records whose starting weight is set by the top step), fixed (the
-    records whose weight the reweighting may not change) and a dict for the report."""
+    records whose weight the reweighting may not change), a dict for the report, and the table of growth factors (None
+    for a past year)."""
     from generate import top_records as TR
     cache = common.TOP_CACHE if spec['mode'] == 'generate' else None
     if common.REAL_PUF and cache:
         assert os.path.exists(cache), (f'filers real_puf: no top cache at {cache}. The top step\'s redraw at $1 billion '
                                        f'runs on a GPU: run the top stage first')
+    growth = None
     if cache and os.path.exists(cache):
         with open(cache, 'rb') as fh:
             base = pickle.load(fh)
         common.say(f'the top step read from {cache}')
     else:
+        g19, raw, imp, growth = START.year_start(spec)
         base = TR.network_part(g19, raw, imp, Y, spec['mode'])
-    return TR.add_list(*base, Y)
+        del g19, raw
+    out = (*TR.add_list(*base, Y), growth)
+    del base
+    common.release_memory()
+    return out
 
 
 def scale_start(g19, imp, given, filer, prescale, soi):
@@ -200,11 +211,16 @@ def list_targets(g19, w0, fixed, filer, prescale, soi):
     if prescale == 'demographic':
         sub = rows[rows['kind'].isin(PRESCALE_KINDS)].reset_index(drop=True)
         Fs, Ts, avs = TLS.conditions(g19, sub, w0)
+        Fs = Fs.toarray()   # the prescaling's own cells are few, and their table is kept in full
         w0, prescaled = prescale_demographic(w0, Fs, Ts, sub['se'].to_numpy(float), sub['identity'].to_numpy(bool), avs,
                                              sub, filer, g19['married'].to_numpy(), soi, fixed)
         del Fs
     else:
         F, T, averages = TLS.conditions(g19, rows, w0)
+        if rows['rank_variable'].fillna('').astype(str).ne('').any():
+            # With an income rank group among the targets, add_calculator_targets writes every condition again
+            # after the taxes. The conditions written here are let go.
+            F = T = averages = None
     return rows, F, T, averages, w0, w_status, prescaled
 
 
@@ -228,9 +244,11 @@ def add_calculator_targets(g19, rows, F, T, averages, w0):
     t43 = rows[(rows['kind'] == 'soi 4.3') & (rows['target'] == 'returns')]
     if len(t43):   # Table 4.3's groups are at SOI's published AGI cutoffs
         common.say('Table 4.3 groups at SOI\'s published AGI cutoffs (returns on the starting weights, SOI): '
-                   + '; '.join(f'{r.group} ${r.agi_lo:,.0f} ({float(w0 @ F[:, i]) / 1e3:,.1f} thousand, '
+                   + '; '.join(f'{r.group} ${r.agi_lo:,.0f} ({float(w0 @ sparse_table.column(F, i)) / 1e3:,.1f} thousand, '
                                f'SOI {r.value / 1e3:,.1f} thousand)' for i, r in t43.iterrows()))
     TLS.write(rows, common.TILT, Y)
+    common.say(f'the table of conditions: {F.shape[0]:,} records by {F.shape[1]:,} targets, '
+               f'{100 * F.nnz / max(F.shape[0] * F.shape[1], 1):.1f}% of its entries not zero')
     return rows, F, T, averages, se, identity, calc_rows
 
 
@@ -413,6 +431,15 @@ def start_lines(spec, g19, prescale, n_nonfilers, nf_note, growth):
     return lines
 
 
+def with_weights(g19, w0, w1):
+    """The records as the year's file holds them: the starting weights in a new last column weight_start, and the
+    weights w1 in the column weight. The other columns are shared with g19, not copied."""
+    out = g19.copy(deep=False)
+    out['weight_start'] = w0
+    out['weight'] = w1
+    return out
+
+
 def start_outputs(P):
     """Writes the outputs that depend on the start alone: the top step's report, the non-microdata imputations'
     scalars (the projection years read them from their start's folder) and the SCF targets by wave. Returns the
@@ -510,11 +537,9 @@ def prepare():
     # 1. Build the start: the year's records in target-year dollars, with the top of the file added. For a projection
     #    year, also write each column's growth factors in full precision (package.py reads them).
     spec = TLS.start_spec(Y)
-    g19, raw, imp, growth = START.year_start(spec)
+    g19, imp, given, fixed, top, growth = start_with_top(spec)
     if growth is not None:
         growth.to_csv(f'{common.TILT}/start_growth.csv', index=False)
-    g19, imp, given, fixed, top = top_of_file(g19, raw, imp, spec)
-    del raw
     filer = g19['filer'].to_numpy() == 1
     prescale = spec['weights']
 
@@ -523,21 +548,26 @@ def prepare():
 
     # 3. List the targets that do not need the calculator, and apply the demographic prescaling if the year uses it.
     rows, F, T, averages, w0, w_status, prescaled = list_targets(g19, w0, fixed, filer, prescale, soi)
+    common.release_memory()
 
     # 4. Run the non-microdata imputations on the start with its prescaled weights. They add columns, except amt_nols,
     #    whose drawn value is kept as amt_nols_drawn. No target reads them. Then compute every record's taxes under
     #    the year's law.
     g19, nmi_ctx = NMI.impute(g19, Y, w0)
+    common.release_memory()
     g19, tax_ctx = TX.compute(g19, Y, w0, f'{common.TILT}/taxes')
+    common.release_memory()
 
     # 5. Add the targets on the calculator's columns and write every target as a condition on the weights.
     rows, F, T, averages, se, identity, calc_rows = add_calculator_targets(g19, rows, F, T, averages, w0)
+    common.release_memory()
 
     # 6. The checks before the solve. They only report; no target is dropped.
     feas, precheck_lines = checks_before_solve(rows, F, T, se, identity, averages, w0, fixed)
 
     # 7. Set the soft caps and the importances.
     S_main, grp, upper, beta, rho = solver_settings(g19, filer, w0, fixed, rows)
+    common.release_memory()
     return dict(g19=g19, w0=w0, F=F, T=T, se=se, identity=identity, averages=averages, fixed=fixed, rows=rows, upper=upper,
                 beta=beta, rho=rho, S_main=S_main, grp=grp, top=top, prescaled=prescaled, precheck_lines=precheck_lines,
                 feas=feas, nmi_ctx=nmi_ctx, tax_ctx=tax_ctx, calc_rows=calc_rows, spec=spec, n_nonfilers=n_nonfilers,
@@ -549,10 +579,11 @@ def solve_and_write(P, t_start):
     summary.md."""
     g19, w0 = P['g19'], P['w0']
     w1, info = run_solve(P, t_start)
+    common.release_memory()
     starts = start_outputs(P)
     fit = SV.fit_table(w0, w1, P['F'], P['T'], P['se'], P['averages'], P['rows'], P['identity'])
     fit.to_csv(f'{common.TILT}/fit.csv', index=False)
-    g19.assign(weight_start=w0, weight=w1).to_parquet(f'{common.TILT}/file_{Y}.parquet', index=False)
+    with_weights(g19, w0, w1).to_parquet(f'{common.TILT}/file_{Y}.parquet', index=False)
     factors, tax_lines = weight_outputs(g19, w0, w1, fit, P['grp'], P['nmi_ctx'], P['tax_ctx'], P['calc_rows'])
     write_summary(g19, P['top'], w0, w1, P['w_plain'], P['w_status'], g19['net_worth'].to_numpy(float), len(P['T']), P['fixed'],
                   info, P['feas'], fit, factors, P['prescaled'], P['precheck_lines'], starts, tax_lines, P['nmi_ctx'],
@@ -567,7 +598,7 @@ def write_inputs(P, t_start):
     with open(f'{common.OUT}/solve_inputs.pkl', 'wb') as fh:
         pickle.dump(solve_inputs(P), fh, protocol=4)
     starts = start_outputs(P)
-    g19.assign(weight_start=w0, weight=w0).to_parquet(f'{common.TILT}/file_{Y}.parquet', index=False)
+    with_weights(g19, w0, w0).to_parquet(f'{common.TILT}/file_{Y}.parquet', index=False)
     context = dict(top={'notes': P['top']['notes']}, prescaled=P['prescaled'], precheck_lines=P['precheck_lines'], feas=P['feas'],
                    starts=starts, nmi_ctx=NMI.context_to_save(P['nmi_ctx']), tax_ctx=P['tax_ctx'], calc_rows=P['calc_rows'],
                    w_plain=P['w_plain'], w_status=P['w_status'], fixed=P['fixed'], n_targets=len(P['T']),
@@ -600,6 +631,7 @@ def main():
     what = sys.argv[1] if len(sys.argv) > 1 else 'solve'
     assert what in ('solve', 'prepare', 'finish'), f'reweight.tilt takes no argument, or prepare or finish, not {what}'
     t_start = time.time()
+    common.return_large_blocks()
     os.makedirs(common.TILT, exist_ok=True)
     if what == 'finish':
         finish()
