@@ -222,7 +222,7 @@ def convert(f):
     # 2. dep_ssn1 to dep_ssn3 are missing where the record has no k-th dependent, and on a few records whose number of
     #    dependents and dependent ages disagree. They are set to 0 and counted. No other column the conversion reads
     #    may be missing.
-    f = f.copy()
+    f = f.copy(deep=False)   # a column filled in below is replaced whole; the others are shared, not copied
     for k in (1, 2, 3):
         c = f'dep_ssn{k}'
         if c in f.columns and f[c].isna().any():

@@ -1978,6 +1978,8 @@
   "_draw_seed": "The seed of the calculator's draws keyed by record id, such as child care credit take-up and the state tax workaround's owners.",
   "wage_increment": 100,
   "_wage_increment": "Dollars added to the primary earner's wages for the marginal tax rates on wages; 0 skips them.",
+  "records_per_piece": 100000,
+  "_records_per_piece": "The most records in one run of the calculator's batch command. The records go through in pieces of at most this many, which bounds the calculator's memory; the pieces give the same taxes as one run. The run that also computes marginal rates (wage_increment above 0) takes pieces of half this size.",
   "repealed_adjustments": {"dpad": 2018, "tuition_ded": 2021, "_what": "Each adjustment and the first tax year the law no longer allows it; taxes.py sets it to zero and moves the adjustments total and other_agi with it."},
   "refund_reported_anyway": 0.15,
   "refund_tax_benefit_from": 2019,
