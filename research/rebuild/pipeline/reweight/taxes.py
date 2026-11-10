@@ -21,6 +21,8 @@ import subprocess
 
 import numpy as np
 import pandas as pd
+import pyarrow as pa
+import pyarrow.parquet as pq
 
 from shared import common
 from shared import dollars as D
@@ -99,15 +101,9 @@ def pin():
     return path
 
 
-def run_batch(frame, year, folder, tag, wage_increment=0.0):
-    """Runs the calculator's input frame (made by calculator_input.convert) through tax-simulator-gpu's batch command
-    under year's law. With a wage increment, the calculator also computes marginal tax rates on wages. Writes
-    <folder>/taxes_input_<tag>.parquet and taxes_output_<tag>.parquet, with the output's manifest (a JSON file that
-    describes the run). Returns the output, in the input's record order, and the manifest."""
-    path = pin()
-    os.makedirs(folder, exist_ok=True)
-    src, dst = f'{folder}/taxes_input_{tag}.parquet', f'{folder}/taxes_output_{tag}.parquet'
-    frame.to_parquet(src, index=False)
+def batch_command(path, src, dst, year, wage_increment):
+    """Runs tax-simulator-gpu's batch command once: the records in the file src under year's law, written to dst with
+    its manifest (a JSON file that describes the run). path is the folder of the pinned copy. Returns the manifest."""
     env = {k: v for k, v in os.environ.items() if k not in ('PYTHONPATH', 'LD_LIBRARY_PATH', 'PYTHONHOME')}
     env.update(PYTHONPATH=f'{path}/src', PYTHONUNBUFFERED='1')
     env['JAX_PLATFORMS'] = 'cpu'   # the calculator runs on the CPU, as the whole reweighting stage does
@@ -115,12 +111,69 @@ def run_batch(frame, year, folder, tag, wage_increment=0.0):
            '--seed', str(S['draw_seed']), '--commit', S['commit'], '--wage-increment', str(float(wage_increment))]
     common.say('taxes: ' + ' '.join(cmd))
     subprocess.run(cmd, cwd=path, env=env, check=True)
-    out = pd.read_parquet(dst)
-    man = json.load(open(f'{dst}.manifest.json'))
+    return json.load(open(f'{dst}.manifest.json'))
+
+
+def run_batch(frame, year, folder, tag, wage_increment=0.0):
+    """Runs the calculator's input frame (made by calculator_input.convert) through tax-simulator-gpu's batch command
+    under year's law. With a wage increment, the calculator also computes marginal tax rates on wages. Writes
+    <folder>/taxes_input_<tag>.parquet and taxes_output_<tag>.parquet, with the output's manifest. Returns the output,
+    in the input's record order, and the manifest.
+
+    The records go through the calculator in pieces of at most settings taxes.records_per_piece records, one run of
+    the batch command per piece. The calculator's memory grows with the number of records in a run. A run with a wage
+    increment computes each record's taxes a second time, and its pieces are half as large. The pieces give the same
+    output as one run: a record's taxes do not depend on the other records in its run, and the calculator's random
+    draws are keyed by record id. The pieces' outputs are put together into the one output file. The manifest is the
+    first piece's, with the record count and the seconds added up over the pieces. A settings file without
+    records_per_piece runs every record at once."""
+    path = pin()
+    os.makedirs(folder, exist_ok=True)
+    src, dst = f'{folder}/taxes_input_{tag}.parquet', f'{folder}/taxes_output_{tag}.parquet'
+    frame.to_parquet(src, index=False)
+    common.release_memory()   # before the calculator's own process takes its memory
+    per_piece = int(S.get('records_per_piece') or len(frame))
+    assert per_piece > 0, 'settings taxes.records_per_piece: a positive number of records'
+    if wage_increment and 'records_per_piece' in S:
+        per_piece = max(1, per_piece // 2)
+    n_pieces = max(1, -(-len(frame) // per_piece))
+    if n_pieces == 1:
+        man = batch_command(path, src, dst, year, wage_increment)
+        out = pd.read_parquet(dst)
+    else:
+        # The pieces' outputs are read as Arrow tables (the form parquet files are read in), joined end to end, written
+        # as the one output file and only then made a data frame.
+        tables, mans = [], []
+        for k, rows in enumerate(np.array_split(np.arange(len(frame)), n_pieces)):
+            src_k, dst_k = f'{folder}/taxes_input_{tag}.piece{k}.parquet', f'{folder}/taxes_output_{tag}.piece{k}.parquet'
+            frame.iloc[rows].to_parquet(src_k, index=False)
+            mans.append(batch_command(path, src_k, dst_k, year, wage_increment))
+            tables.append(pq.read_table(dst_k))
+            assert tables[-1].num_rows == len(rows), f'{dst_k}: {tables[-1].num_rows} rows for {len(rows)} records'
+            for f in (src_k, dst_k, f'{dst_k}.manifest.json'):
+                os.remove(f)
+        table = pa.concat_tables(tables)
+        del tables
+        pq.write_table(table, dst)
+        out = table.to_pandas()
+        del table
+        missing = {}
+        for m in mans:
+            for c, v in m['missing_values_in_outputs'].items():
+                missing[c] = missing.get(c, 0) + v
+        man = {**mans[0], 'records': int(sum(m['records'] for m in mans)), 'input': src, 'pieces': n_pieces,
+               'missing_values_in_outputs': missing,
+               'seconds': {k: round(sum(m['seconds'][k] for m in mans), 1) for k in mans[0]['seconds']}}
+        man.pop('input_sha256', None)   # the first piece's; the whole input file has no checksum of its own
+        with open(f'{dst}.manifest.json', 'w') as fh:
+            json.dump(man, fh, indent=1)
     assert len(out) == len(frame) and out['id'].is_unique, f'{dst}: {len(out)} rows for {len(frame)} records'
-    out = frame[['id']].merge(out, on='id', how='left', validate='one_to_one', indicator=True)
-    gone = int((out.pop('_merge') != 'both').sum())
-    assert not gone, f'{dst}: {gone} records did not come back'
+    # The calculator writes the records in the input's order, with id as the first column. If an output is not in that
+    # form, a merge on id puts it in the input's order.
+    if not (out.columns[0] == 'id' and np.array_equal(out['id'].to_numpy(), frame['id'].to_numpy())):
+        out = frame[['id']].merge(out, on='id', how='left', validate='one_to_one', indicator=True)
+        gone = int((out.pop('_merge') != 'both').sum())
+        assert not gone, f'{dst}: {gone} records did not come back'
     assert not man['missing_values_in_outputs'], f'{dst}: missing values {man["missing_values_in_outputs"]}'
     return out, man
 
@@ -167,7 +220,7 @@ def apply_repealed_adjustments(df, year, w, ctx):
     gone = [k for k, y0 in rep.items() if year >= y0 and k in df]
     if not gone:
         return df
-    df = df.copy()
+    df = df.copy(deep=False)   # the columns changed below are replaced whole; the others are shared, not copied
     filer = df['filer'].to_numpy() == 1
     assert D.FOLD['adjustments'] == -1, 'other_agi holds the adjustments with sign -1 (dollars.FOLD)'
     lines = []
@@ -206,7 +259,7 @@ def apply_refund_rule(df, year, w, folder, ctx, C):
     # 2. Keep the refund on itemizers only. A refund received in year t repays year t-1's taxes. The cap on the
     #    deduction of state and local taxes therefore bears on refunds only from 2019; refunds of 2017 taxes were
     #    deducted with no cap.
-    df = df.copy()
+    df = df.copy(deep=False)   # the columns changed below are replaced whole; the others are shared, not copied
     kept = np.where(item, ref, 0.0)
     if int(year) >= int(S['refund_tax_benefit_from']):
         # The tax benefit rule (IRS Publication 525, worksheet 2): a refund of state income tax is taxable only to the
@@ -300,17 +353,19 @@ def greedy_schedule_a(df, year, w, folder, ctx, C):
         return df
     assert set(target) == set(SCHEDULE_A), f'Table 2.1 {year} categories {sorted(target)}'
     filer = df['filer'].to_numpy() == 1
-    base = df.copy()
+    # The Schedule A inputs before any factor. Each pass and the result replace these columns whole in a frame that
+    # shares its other columns with df.
+    base = {col: df[col].to_numpy(float).copy() for cols, _ in SCHEDULE_A.values() for col in cols if col in df}
     s = {c: 1.0 for c in SCHEDULE_A}
     lo, hi = 1.0 - G['max_move'], 1.0 + G['max_move']
     rows = []
     # 1. The passes (settings greedy_schedule_a.passes).
     for p in range(int(G['passes'])):
-        cur = base.copy()
+        cur = df.copy(deep=False)
         for c, (cols, _) in SCHEDULE_A.items():
             for col in cols:
                 assert col in cur and np.isfinite(cur[col].to_numpy(float)).all(), f'{col}: missing from the file or missing values'
-                cur[col] = base[col].to_numpy(float) * s[c]
+                cur[col] = base[col] * s[c]
         inp, _ = C.convert(cur)
         out, man = run_batch(inp, year, folder, f'greedy{p + 1}', wage_increment=0.0)
         assert (inp['id'].to_numpy() == cur['record_id'].to_numpy()).all(), 'record order'
@@ -340,10 +395,10 @@ def greedy_schedule_a(df, year, w, folder, ctx, C):
     ctx['greedy_passes'] = tab
     ctx['notes'].append('greedy Schedule A step: multipliers on the priors ' +
                         ', '.join(f'{c} {v:.3f}' for c, v in s.items()))
-    out_df = df.copy()
+    out_df = df.copy(deep=False)
     for c, (cols, _) in SCHEDULE_A.items():
         for col in cols:
-            out_df[col] = base[col].to_numpy(float) * s[c]
+            out_df[col] = base[col] * s[c]
     return out_df
 
 
@@ -384,7 +439,7 @@ def compute(df, year, w, folder):
     ctx['notes'].append(f'deductible half of self-employment tax from the calculator (start weights): drawn '
                         f'${(w * old_se)[filer_].sum() / 1e9:.2f} billion, calculator\'s ${(w * new_se)[filer_].sum() / 1e9:.2f} '
                         f'billion on filers; {int((np.abs(new_se - old_se) > 1).sum()):,} records changed')
-    df = df.copy()
+    df = df.copy(deep=False)   # the columns changed and added below are set whole; the others are shared, not copied
     df['se_tax_ded'] = new_se
     df['adjustments'] = df['adjustments'].to_numpy(float) + (new_se - old_se)
     df['other_agi'] = df['other_agi'].to_numpy(float) - (new_se - old_se)
@@ -395,8 +450,9 @@ def compute(df, year, w, folder):
         if src.startswith('input '):
             col = src.split(' ')[1]
             cols[name] = inp[col].to_numpy(float) * item
-    cols.index = df.index
-    df = pd.concat([df, cols], axis=1)
+    assert not [c for c in cols if c in df], 'a computed column already in the file'
+    for c in cols:
+        df[c] = cols[c].to_numpy()
     bad = [c for c in cols if not np.isfinite(df[c].to_numpy(float)).all()]
     assert not bad, f'computed columns with missing or infinite values: {bad}'
     with open(f'{folder}/conversion_notes.txt', 'w') as fh:

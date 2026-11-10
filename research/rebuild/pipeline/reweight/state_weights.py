@@ -92,10 +92,10 @@ LIST_FULL = 0.9     # a cell where the Forbes records hold this share of the tar
 
 def tolerances(tg, tolerance):
     """Each state target's standard error: the tolerance times the larger of the target and CELL_FLOOR times the item's
-    national total in the group. For a count, the error from rounding the IRS's counts to the nearest 10 is added (the
-    two combined as independent errors). Historic Table 2 has no sampling error, so the tolerance is a choice. Example,
-    with a 2% tolerance: Connecticut's 2019 target of $12.21 billion of wages in the $50-75k group has a standard error
-    of $244 million."""
+    national total in the group, both at the starting weights. For a count, the error from rounding the IRS's counts
+    to the nearest 10 is added (the two combined as independent errors). Historic Table 2 has no sampling error, so the
+    tolerance is a choice. Example, with a 2% tolerance: Connecticut's 2019 target of about $12.2 billion of wages in
+    the $50-75k group has a standard error of about $244 million."""
     t = tg['target'].abs().to_numpy()
     total = (tg['target'] / tg['share']).abs().to_numpy()
     se = tolerance * np.maximum(t, CELL_FLOOR * total)
@@ -263,9 +263,10 @@ def check_all(a):
         say(f"WARNING: {int(r['year'])} stopped short of the stopping size after {int(r['newton_largest_group'])} Newton steps, largest gradient {r['largest_gradient']:.2e}, "
             f"within 10 times the stopping size; the result is used")
     fin = d.drop(short.index)
+    budget = int(common_settings()['newton_budget'])
     ok = {'every file there': bool(d['file'].all()), 'shares sum to 1 (largest error under 1e-9)': bool((d['largest_share_sum_error'] < 1e-9).all()),
           'national totals unchanged (largest error under 1e-9)': bool((d['largest_item_total_error'] < 1e-9).all()),
-          'every past year converged within 150 Newton steps, or stopped short and is reported above': bool(fin['all_converged'].all() and (d['newton_largest_group'] <= 150).all())}
+          f'every past year converged within {budget} Newton steps, or stopped short and is reported above': bool(fin['all_converged'].all() and (d['newton_largest_group'] <= budget).all())}
     say(json.dumps(ok, indent=1))
     say(f"largest share sum error {d['largest_share_sum_error'].max():.2e}; largest item total error {d['largest_item_total_error'].max():.2e}; "
         f"largest group's Newton steps {d['newton_largest_group'].max()}; largest year's, all groups {d['newton_all_groups'].max()}; bytes {d['bytes'].sum() / 1e9:.1f} GB in all")

@@ -386,8 +386,8 @@ def _spread_children_with_partner(r):
     """Routine 3. Spreads the youngest qualifying children between the householder and an unmarried partner who
     heads their own unit, by the same counts as routine 2.
 
-    The number moved toward a side is at most the number of the children who are that side's own children. Nothing
-    moves toward a side with no wages."""
+    The number moved toward a side is at most the number of the children who are that side's own children, and the
+    children moved are that side's own children, youngest first. Nothing moves toward a side with no wages."""
     g = r.hh.to_numpy()
     hsum = lambda v: pd.Series(np.asarray(v, dtype=float)).groupby(g).transform('sum').to_numpy()
     hmax = lambda v: pd.Series(np.asarray(v, dtype=float)).groupby(g).transform('max').to_numpy()
@@ -415,11 +415,15 @@ def _spread_children_with_partner(r):
     p2h = np.where((hd_c < 2) & (hd_max >= 1) & (pt_c == 3) & has_pt, 1, p2h)
     p2h = np.where((hd_c == 0) & (hd_max >= 1) & (pt_c == 2) & has_pt, 1, p2h)
     p2h = np.where(~(hd_wage > 0), 0, p2h)
+    # Only a child of the receiving side moves, youngest first. Here the code departs from CBO's, which moves the
+    # youngest qualifying children whoever their parents are. A partner cannot claim a child who is not theirs.
+    pt_own = (pt_ln > 0) & ((momv == pt_ln) | (popv == pt_ln))
+    hd_own = (momv == hd_ln) | (popv == hd_ln)
     dest_p = np.where(has_pt, pt_tu, 0).astype(np.int64)
-    r = _move_youngest(r, lambda: (has_partner_hh & (r.tu_rel == 3).to_numpy() & (r.tu_id == 1).to_numpy()),
+    r = _move_youngest(r, lambda: (has_partner_hh & (r.tu_rel == 3).to_numpy() & (r.tu_id == 1).to_numpy() & pt_own),
                        np.ones(len(r), bool), h2p, dest_p)
     dest_h = np.where(np.isfinite(hd_tu), hd_tu, 0).astype(np.int64)
-    r = _move_youngest(r, lambda: ((r.tu_rel == 3) & (r.tu_id == np.where(has_pt, pt_tu, -1))).to_numpy(),
+    r = _move_youngest(r, lambda: ((r.tu_rel == 3) & (r.tu_id == np.where(has_pt, pt_tu, -1))).to_numpy() & hd_own,
                        np.ones(len(r), bool), p2h, dest_h)
     return r
 

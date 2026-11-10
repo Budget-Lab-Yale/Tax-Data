@@ -1871,7 +1871,7 @@
   },
   "_reweighting": "The cost: the sum over targets of 0.5 x importance x (miss / standard error)^2 plus tau x the Kullback-Leibler move from the start, with identities exact. newton_budget is the most Newton steps in all, gradient_tolerance the stopping size, average_weight_change the move in a group's weight that triggers a second solve for the standard errors of averages, and importance_one_kinds the target kinds with importance 1 (the others 1 / other_importance_divisor).",
   "soft_cap": {"k": 10, "beta": 1.0},
-  "projection": {"cbo_last_year": 2035, "population_dir": "/nfs/roberts/project/pi_nrs36/shared/model_data/Macro-Projections/v3/2026022522/baseline", "items_table": "targets_config/projection_items.csv", "add_factors_table": "targets_config/projection_add_factors.csv", "return_age_edges": [20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80], "item_min_records": 500, "item_min_dollars": 500000000, "filing_season": {"base_year": 2023, "year": 2024, "tables": "../resources/filing_season/november_tables.csv", "trust_table": "targets_config/filing_season_trust.csv", "errors_table": "targets_config/filing_season_errors.csv", "min_error": 0.01, "series": {"capital_gains_line13": "file:projection_series_b.csv:rev_iit_capital_gain_loss"}}, "interest_growth": {"from_year": 2024, "rate_series": "file:projection_series_b.csv:int_gdp_bill", "split_year": 2022, "_what": "From from_year on, taxable interest grows with rate_series (nominal GDP times CBO's 3-month Treasury bill rate), and non-qualified dividends with a blend of their own series and rate_series weighted by the start file's split."}},
+  "projection": {"cbo_last_year": 2035, "population_dir": "/nfs/roberts/project/pi_nrs36/shared/model_data/Macro-Projections/v3/2026110912/baseline", "items_table": "targets_config/projection_items.csv", "add_factors_table": "targets_config/projection_add_factors.csv", "return_age_edges": [20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80], "item_min_records": 500, "item_min_dollars": 500000000, "filing_season": {"base_year": 2023, "year": 2024, "tables": "../resources/filing_season/november_tables.csv", "trust_table": "targets_config/filing_season_trust.csv", "errors_table": "targets_config/filing_season_errors.csv", "min_error": 0.01, "series": {"capital_gains_line13": "file:projection_series_b.csv:rev_iit_capital_gain_loss"}}, "interest_growth": {"from_year": 2024, "rate_series": "file:projection_series_b.csv:int_gdp_bill", "split_year": 2022, "_what": "From from_year on, taxable interest grows with rate_series (nominal GDP times CBO's 3-month Treasury bill rate), and non-qualified dividends with a blend of their own series and rate_series weighted by the start file's split."}},
   "_projection": "The projection years' steps (projection_steps.py): population_dir is CBO's population by marital status and age; items_table each grown column's series and target; add_factors_table extra growth by item and years, each non-zero row with a note; return_age_edges the age bands of the returns targets; cbo_last_year the last year of CBO projections, with long-run Macro-Projections growth after it; item_min_records and item_min_dollars the floors for an item's target; filing_season the blend of SOI's November filing-season tables with CBO's growth for the first projection year. See FEATURES.md, \"Projection years\".",
   "_soft_cap": "A soft cap on each record's weight: U is k times the mean starting weight of the record's AGI group, and the cost adds 0.5 x beta x ((w - U) / U)^2 above U; k null means no cap.",
   "top": {
@@ -1971,13 +1971,15 @@
  },
  "taxes": {
   "_what": "Taxes under the target year's law, computed inside the reweighting stage before the solve by tax-simulator-gpu's batch command, from a copy of its repository at commit, run with its own Python (python); the columns join the file as calc_<name>.",
-  "commit": "c89e2729d2ed1b13ac32c7be7951de55aecb001f",
+  "commit": "d2fefb854207ac0ac1fd01dd260a7b4980fbe4a3",
   "repo": "/nfs/roberts/project/pi_nrs36/jar335/Repositories/tax-simulator-gpu",
   "python": "/nfs/roberts/project/pi_nrs36/jar335/Repositories/tax-simulator-gpu/.venv/bin/python",
   "draw_seed": 76,
   "_draw_seed": "The seed of the calculator's draws keyed by record id, such as child care credit take-up and the state tax workaround's owners.",
   "wage_increment": 100,
   "_wage_increment": "Dollars added to the primary earner's wages for the marginal tax rates on wages; 0 skips them.",
+  "records_per_piece": 100000,
+  "_records_per_piece": "The most records in one run of the calculator's batch command. The records go through in pieces of at most this many, which bounds the calculator's memory; the pieces give the same taxes as one run. The run that also computes marginal rates (wage_increment above 0) takes pieces of half this size.",
   "repealed_adjustments": {"dpad": 2018, "tuition_ded": 2021, "_what": "Each adjustment and the first tax year the law no longer allows it; taxes.py sets it to zero and moves the adjustments total and other_agi with it."},
   "refund_reported_anyway": 0.15,
   "refund_tax_benefit_from": 2019,
@@ -1997,6 +1999,6 @@
   "tolerance": 0.02,
   "tau": 1000,
   "nonfiler_tolerance": 0.02,
-  "newton_budget": 150
+  "newton_budget": 200
  }
 }

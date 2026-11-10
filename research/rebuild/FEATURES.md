@@ -926,7 +926,14 @@ Every record's federal income and payroll taxes under the target year's law come
 1. The file becomes the calculator's input frame (`shared/calculator_input.convert`, `CALCULATOR_CONTRACT.md`).
 2. tax-simulator-gpu's batch command (`python -m taxmodel.run.batch`) runs it on the CPU in the calculator's own Python
    environment (`taxes.python`), from a copy of that repository at the pinned commit (`taxes.commit`, written once under
-   `<out>/lib/`). About 20 seconds for 457,000 records.
+   `<out>/lib/`). The records go through in pieces of at most `taxes.records_per_piece` records (100,000), one run of
+   the command per piece; the run that also computes marginal rates takes pieces of half that size. This bounds the
+   calculator's memory, which grows with the number of records in a run: about 2.3 GB a piece, against 8 to 14 GB for
+   457,000 records at once. The pieces give the same taxes as one run, column for column: a record's taxes do not
+   depend on the other records, and the calculator's random draws are keyed by record id. Each run takes about 12
+   seconds, most of it the calculator's start, whatever the number of records. The five passes of a year (the refund
+   rule, three Schedule A passes and the final run) are 30 runs for 457,000 records, about 5 minutes; a larger
+   `records_per_piece` trades memory for time.
 3. The output columns join the file by record id, each the calculator's name with `calc_` in front: AGI, itemizing and
    itemized deductions claimed, the standard deduction, the QBI deduction, taxable income, income tax before credits,
    the AMT, the child credit's two parts, the EITC, nonrefundable and refundable credits, income tax after credits, the
@@ -1033,6 +1040,12 @@ groups). The families in a past year, with 2019's counts:
   is repeated once at the first answer's group weights if any moved more than 0.1%.
 - Newton's method on the multipliers, at most 150 steps in all (`newton_budget`), stopping when the largest gradient is
   below 1e-8. A slow solve is a reason to check the targets, not to raise the budget.
+- The table of conditions (one row per record, one column per target, each entry the record's contribution to the
+  target) is kept as a sparse matrix, which stores only the entries that are not zero: about 7% of them in a past year
+  (`reweight/sparse_table.py`; 0.5 GB for 457,000 records and 1,325 targets, against 4.8 GB in full). The Hessian is
+  added up over blocks of records, each written out in full (about 25,000 records a block at 1,325 targets). The
+  weights agree with those from the full table to rounding: the largest change on one record is under one part in a
+  billion. The number of Newton steps can differ by a few, because the last steps work at the level of rounding.
 - Records held fixed (the Forbes list) enter as fixed amounts; `solver.fixed_feasibility` checks before the solve what
   the others must reach (`top_feasibility.csv`).
 
@@ -1045,7 +1058,10 @@ factor of 10, STOP in the summary below 10 or above 100 (the run continues).
 dollars, `weight_start` and `weight`), `fit.csv` (every target before and after, miss in standard errors, thin-cell
 measures), `targets.csv`, `resolved_<year>.yaml`, `summary.md` (convergence, Kullback-Leibler move, effective sample
 kept, weight factors by AGI group, notes), `report.md` and `report_*.csv`, the non-microdata checks, the taxes folder,
-and the top step's files. With `REBUILD_SAVE_SOLVE` set, the solve's inputs are saved for the state solve.
+and the top step's files. For a past year the stage runs in two parts around the integrated solve of the state
+weights: `prepare` (everything before the solve, written as the solve's inputs, `solve_inputs.pkl`, with the file at
+its starting weights) and `finish` (the outputs and `summary.md` on the integrated weights, in the year's final
+folder). With `REBUILD_SAVE_SOLVE` set, a whole run also saves its solve's inputs.
 
 ### State weights
 
@@ -1053,9 +1069,9 @@ A file for each year 2015-2075 splitting every record's national weight across t
 Areas, and Puerto Rico from 2018: `files/state_weights_<year>.parquet` (id, state, weight; Zstandard; about 190 MB and
 24 million rows a year). A record's national weight is the sum of its weights across areas. Settings `state_weights`.
 
-**Past years 2015-2023:** a national-only solve of the year (whose amounts set the state targets), then the
-integrated solve of national and state weights together. **Future years 2024-2075:** the national solve alone, each
-record keeping its 2023 split.
+**Past years 2015-2023:** one solve, of the national and the state weights together, with the state targets as
+shares of the file's own national totals. **Future years 2024-2075:** the national solve alone, each record keeping
+its 2023 split.
 
 - **The start** (`reweight/state_start.py`, GPU, about a minute a year). Each record is read under the CPS label with
   the target year's CPS mix, averaged over the three networks: shown are what the record has that the CPS asks, its
@@ -1067,18 +1083,22 @@ record keeping its 2023 split.
   abroad goes to Other Areas; otherwise as any record in a past year, and the year's pinned records' distribution in a
   projection year). Pinned records enter the solve as fixed amounts.
 - **Filer targets** (`reweight/state_targets.py`). For area s, AGI group g (Historic Table 2's ten, on `calc_agi`) and
-  item v: the file's national total of v in g times the IRS's share of s in g and v. Schedule A items count on records
-  the calculator itemizes. A cell has no target where the IRS merged it (zero in a group whose national total is not),
+  item v: the IRS's share of s in g and v, of the file's national total of v in g (a share condition; see below).
+  Schedule A items count on records the calculator itemizes. A cell has no target where the IRS merged it (zero in a
+  group whose national total is not),
   where the areas' values cancel or the file and the IRS have opposite signs, where the list records hold 90% or more
   of it, or where fewer than 250 effective records stand behind the item in the group (about 5 for each of the 53
   areas). The list is `FINAL_ITEMS` (49-52 items a year, counts and amounts): returns, single, joint and head of
-  household returns, people, AGI, wages, interest, dividends, returns with capital gains, state and local taxes, real
-  estate taxes, mortgage interest, the EITC; business income, pensions, Social Security, federal income tax; IRA
+  household returns, people, AGI, wages, interest, dividends, returns with capital gains, returns with state and
+  local income or sales taxes, returns with real estate taxes, the deduction for state and local taxes as claimed
+  (after the $10,000 limit from 2018; Historic Table 2's A18460), mortgage interest, the EITC; business income, pensions, Social Security, federal income tax; IRA
   distributions, pensions and annuities, unemployment, qualified dividends, partnership and S corporation returns,
   taxable income, itemizers, charity, self-employment tax, state refunds, the QBI deduction, the net investment income
-  tax, the refundable child credit and tax-exempt interest, each where the year's table has the line. Three dollar
-  amounts are not state targets (`NOT_STATE_TARGETS`): capital gains, partnership and S corporation income, and
-  itemized deductions; their counts are.
+  tax, the refundable child credit and tax-exempt interest, each where the year's table has the line. Five dollar
+  amounts are not state targets (`NOT_STATE_TARGETS`); their counts are. Capital gains, partnership and S corporation
+  income, and itemized deductions keep the solve from converging. Income or sales taxes and real estate taxes before
+  the limit have no national target, and as shares of the file's own total they let that total drift (in a 2019 test,
+  income or sales taxes at $1 million and over rose from $103 billion to $184 billion against the IRS's $86 billion).
 - **Non-filer targets** (`state_targets.nonfiler_state_table`). A state's share of non-filer adults is its share of:
   CPS adults in tax units (heads and spouses of the training table's CPS rows, pooled over the five CPS years with
   equal weights, times the year's CPS total), less IRS adults on returns (N1 + MARS2), plus dependent returns (SOI Table
@@ -1086,18 +1106,31 @@ record keeping its 2023 split.
   or below zero stops the run. Example: 2019, Colorado: 1.793% x 230.81 million = 4,138,588 CPS adults, less 3,910,950,
   plus 169,230 = 396,868, 1.364% of the national 29.09 million. A state by age band table, raked to these residuals and
   to the file's non-filer adults by band, gives each target.
+- **A target is a share.** The solve meets, for each area, AGI group and item, the condition that the area's amount
+  less the IRS's share times the file's national amount in the group (the sum over every area, at the weights the solve
+  finds) is zero. The same holds for the non-filer targets by state and age band. The target's value in dollars or
+  returns, in `state_fit.csv.gz` and the notes, is the share times the national amount at the starting weights; that
+  value sets the standard error and decides which cells have a target (`target_final` is the share times the final
+  amount, and the misses are from it).
 - **Standard errors.** Historic Table 2 has no sampling error, so each state target's error is `tolerance` (2%) times
-  the larger of the target and 0.1% of the item's national total in the group, plus the rounding of the IRS's counts
-  to the nearest 10 for a count. Each is divided by the square root of the AGI group's share of the weight.
+  the larger of the target at the starting weights and 0.1% of the item's national total in the group at those
+  weights, plus the rounding of the IRS's counts to the nearest 10 for a count. Each is divided by the square root of
+  the AGI group's share of the weight.
 - **The integrated solve** (`reweight/state_joint.py`, 16 CPUs, about 10 seconds a Newton step). Record-by-area
-  weights w_is = w0_i x p0_is x exp(x_i' lambda_national + x_i' lambda_s), with the solver's cost, tau and soft cap,
-  the year's national targets and the state targets. Two state multipliers interact only within one area and AGI
-  group, so the Newton system reduces to one dense matrix the size of the national targets (about 1,300 rows), about 580
-  small blocks, and a term for records above their cap. Budget 150 Newton steps.
+  weights w_is = w0_i x p0_is x exp(x_i' lambda_national + z_i' (lambda_s - mu_g)), with the solver's cost, tau and
+  soft cap, the year's national targets and the state targets. mu_g is the group's share-weighted sum of its areas'
+  multipliers, one number per item; it is the part of each share condition that subtracts the national amount. Without
+  it, two state multipliers would interact only within one area and AGI group; with it, each group's areas are tied
+  together through 2K extra unknowns (the change in mu_g and in the group's national amounts of the K items), which
+  join the national multipliers in the dense part of the Newton system. The system is then one dense matrix of about
+  2,300 rows (factored by LU decomposition; it is symmetric but not positive definite), about 580 small blocks, and a
+  term for records above their cap. When every area of a group has a target for an item, the item's conditions sum to
+  zero whatever the weights; the standard errors keep the system solvable. Budget 200 Newton steps (settings
+  `state_weights.newton_budget`; the national solves keep 150).
 - **Future years** (`reweight/state_weights.py --carry`): a record's state weight is the year's national weight times
   its 2023 share, by record id (`shares/shares_2023.npz`). Any record other than a Forbes record that lacks a 2023 share
   stops the stage.
-- **A year that stops short**: one that uses all 150 steps with its largest gradient within 10 times the stopping size
+- **A year that stops short**: one that uses all its steps with its largest gradient within 10 times the stopping size
   is used and named in the log and the check; beyond that its files are written, its job fails and the check stops.
 - **Check** (`state_weights.py --check`): every year's file and state weights against each other, into
   `checks/by_year.csv`.
@@ -1137,12 +1170,17 @@ report.
 | training, per network | GPU (H200) | about 62 minutes |
 | a past year's folder, targets and dollar maps | CPU | about 3 minutes |
 | draw and top step | GPU, 120 GB | 45-50 minutes (draw 17, top 31) |
-| national solve, past year | 4 CPUs, 72 GB | 11-20 minutes |
+| a past year's solve inputs (the start, prescaling, taxes, targets) | 4 CPUs, 7 GB | about 8 minutes |
 | state chances | GPU | about a minute |
-| integrated state solve | 16 CPUs, 96 GB | 15-42 minutes |
-| projection year (solve and carried split) | 4 CPUs | 3-4 minutes |
-| Tax-Simulator file | 2 CPUs | about a minute |
+| integrated state solve, with the outputs and the report | 16 CPUs, 11 GB | 15-45 minutes |
+| projection year (solve and carried split) | 4 CPUs, 11 GB | about 4 minutes |
+| Tax-Simulator file | 2 CPUs, 8 GB | about 2 minutes |
 | package and round trip | CPU | about 3 minutes |
+
+The memory figures are the most the step's processes held at once, at 2019's size (457,000 records, 1,325 national
+targets) and for 2024 (464,000 records); they leave out the file cache, which Slurm's own figure includes. Three
+things keep them low: the calculator runs on pieces of the records, the table of conditions is sparse, and the
+reweighting stages give freed memory back to the operating system (`shared/common.py`, "Memory").
 
 The GPU is used only to train, draw, run the top step and read state chances. Training and generation run on H100 or
 H200 GPUs; a stack drawn on a B200 once had about 11% fewer rare business holders, untested since. Every year

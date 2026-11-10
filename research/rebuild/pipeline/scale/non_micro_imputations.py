@@ -64,10 +64,12 @@ def fill_missing_sex(df):
     item's random number. Generation always draws a sex for the primary filer, and this normally changes no record.
     Returns the frame and a mask of the records changed."""
     nosex = (df['age1'].to_numpy() >= 0) & (df['sex_primary'].to_numpy() <= 0)
-    df = df.copy()
+    df = df.copy(deep=False)   # sex_primary is replaced whole below; the other columns are shared, not copied
     if nosex.any():
         draw = np.where(uniform(df, 'death_probabilities', 1) < 0.5, 1, 2).astype(df['sex_primary'].dtype)
-        df.loc[nosex, 'sex_primary'] = draw[nosex]
+        sex = df['sex_primary'].to_numpy(copy=True)
+        sex[nosex] = draw[nosex]
+        df['sex_primary'] = sex
     return df, nosex
 
 
@@ -768,7 +770,7 @@ def written_back():
 def as_drawn(df):
     """A finished file with every changed column put back to its drawn value and the written columns dropped. impute
     can then run on it again."""
-    df = df.copy()
+    df = df.copy(deep=False)   # a column put back is replaced whole; the others are shared, not copied
     for c, keep in written_back().items():
         if keep in df:
             df[c] = df[keep]
@@ -1125,6 +1127,15 @@ def checks(df, year, w, ctx):
     w = np.asarray(w, float)
     ctx['year'] = year
     return [(title, *f(df, w, ctx)) for title, f in CHECKS]
+
+
+def context_to_save(ctx):
+    """impute's context in a form pickle can write, for checks run in another process (tilt.py finish). The
+    holding-period model keeps its numbers and loses its functions; the checks read only the numbers."""
+    out = dict(ctx)
+    if 'holding' in out:
+        out['holding'] = {**out['holding'], 'model': {k: v for k, v in out['holding']['model'].items() if not callable(v)}}
+    return out
 
 
 def write_checks(sections, folder, year):

@@ -6,6 +6,8 @@ overrides the settings), in its subfolders data/, targets/, model/, gen/ and til
 subfolder of model/, gen/ and tilt/ (by default seed<n>). The helpers apply two pieces of tax law that several stages
 need (the capital loss limit and the taxable share of Social Security) and compute weighted quantiles.
 """
+import ctypes
+import gc
 import json
 import os
 
@@ -138,3 +140,37 @@ def wquantile(x, w, probs):
 def say(*parts):
     """Prints to the stage's log at once."""
     print(*parts, flush=True)
+
+
+# ---- Memory ----
+# Arrow is the library that reads and writes the parquet files. By default it takes its memory through an allocator of
+# its own, which keeps the memory of a table after the table is dropped. Here it is set to take its memory from the C
+# library instead, and release_memory can then give that memory back.
+try:
+    import pyarrow
+    pyarrow.set_memory_pool(pyarrow.system_memory_pool())
+except ImportError:
+    pass
+
+
+def return_large_blocks():
+    """Tells the C library to give each block of memory of 1 MB or more back to the operating system as soon as it is
+    freed, from this call on. By default the library keeps freed blocks of up to 32 MB for later use. A stage that
+    builds and drops many arrays of one value per record then holds several gigabytes more than its tables take. The
+    reweighting stages call this once, at their start. It changes no result. It does nothing on a system without the
+    GNU C library (macOS, Windows)."""
+    try:
+        ctypes.CDLL('libc.so.6').mallopt(-3, 1 << 20)   # -3 is M_MMAP_THRESHOLD
+    except (OSError, AttributeError):
+        pass
+
+
+def release_memory():
+    """Gives back to the operating system the memory that this process has freed but still holds, in blocks of any
+    size. The stages call this after their large steps. It changes no result. On a system whose C library has no
+    malloc_trim (macOS, Windows) it only runs Python's garbage collector."""
+    gc.collect()
+    try:
+        ctypes.CDLL('libc.so.6').malloc_trim(0)
+    except (OSError, AttributeError):
+        pass

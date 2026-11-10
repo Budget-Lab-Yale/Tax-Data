@@ -1,10 +1,13 @@
 """The targets of the state weights for one year's file, from IRS Historic Table 2, SOI Table 1.7 and the CPS.
 
 Historic Table 2 gives, for each state and AGI group, the number of returns and the amounts of about 50 lines of the
-return. A filer target for an area, AGI group and item is the file's national total of the item in the group times
-the area's share of that total in Historic Table 2. The IRS's table thus sets how the total is divided among the
-areas, and the file sets the total. The non-filer targets are each state's adults by age band, built from the CPS and
-the IRS's counts of adults on returns. The rules are in FEATURES.md, "State weights".
+return. A filer target for an area, AGI group and item is the area's share of the national total in Historic Table 2.
+The integrated solve (state_joint.py) meets it as a share of the file's own national total of the item in the group,
+at the weights it finds. The IRS's table thus sets how the total is divided among the areas, and the file sets the
+total. The target's value in dollars or returns, written in the tables here, is the share times the file's national
+total at the starting weights; it sets the standard error and decides which cells have a target. The non-filer
+targets are each state's adults by age band, built from the CPS and the IRS's counts of adults on returns. The rules
+are in FEATURES.md, "State weights".
 """
 import os
 
@@ -112,7 +115,8 @@ def read_file(path, extra=()):
 # ---- The items ----
 
 # The items. name: (the Historic Table 2 columns, summed; a function that gives each record's value of the item;
-# 'count' or 'amount'). A count is the number of returns with the item not zero, as in Historic Table 2. Iselin's 21
+# 'count' or 'amount'). Where the columns differ by year, the entry is a list of column lists, and the first one whose
+# columns the year's table has is used. A count is the number of returns with the item not zero, as in Historic Table 2. Iselin's 21
 # series come first: the Historic Table 2 series that Iselin's method of state weights targets. His nine held-out items
 # are the series he leaves out of the targets to test the weights.
 def _item_table():
@@ -151,6 +155,10 @@ def _item_table():
         'mort_int_amt': (['A19300'], lambda d: d['first_mort_int'].to_numpy(float) * itm(d), 'amount'),
         'n_eitc': (['N59660'], lambda d: (d['calc_eitc'].to_numpy(float) > 0).astype(float), 'count'),
         'eitc_amt': (['A59660'], amt('calc_eitc'), 'amount'),
+        # The deduction for state and local taxes as claimed: the calculator's amount on itemizers, after the $10,000
+        # limit from 2018. Historic Table 2 gives the limited amount from 2018 (A18460). Before 2018 there is no limit,
+        # and the amount is the sum of the table's income or sales taxes and real estate taxes.
+        'taxes_ded_amt': ([['A18460'], ['A18425', 'A18450', 'A18500']], amt('calc_claimed_taxes'), 'amount'),
         # Iselin's nine held-out items (targeted in the final files, except the positive part of capital gains)
         'n_bus': (['N00900'], nz('sole_prop'), 'count'),
         'bus_amt': (['A00900'], amt('sole_prop'), 'amount'),
@@ -204,11 +212,14 @@ HELD_OUT = ['n_bus', 'bus_amt', 'n_pens', 'pens_amt', 'n_ss', 'ss_amt', 'n_fedta
 # table does not have is left out that year.
 EXTRA_ITEMS = ['kg_amt', 'n_ira', 'ira_amt', 'n_retire', 'retire_amt', 'n_ui', 'ui_amt', 'n_qdiv', 'qdiv_amt', 'n_pship', 'pship_amt',
                'n_txinc', 'txinc_amt', 'n_itemize', 'itemize_amt', 'n_char', 'char_amt', 'n_setax', 'setax_amt', 'n_refund_state',
-               'refund_state_amt', 'n_qbi', 'qbi_amt', 'n_niit', 'niit_amt', 'n_actc', 'actc_amt', 'n_exempt', 'exempt_amt']
-# Three dollar amounts are not state targets: capital gains, partnership and S corporation income, and itemized
-# deductions. Their counts are. With these amounts as targets, the integrated solve does not converge within its limit
-# of Newton steps.
-NOT_STATE_TARGETS = ['kg_amt', 'pship_amt', 'itemize_amt']
+               'refund_state_amt', 'n_qbi', 'qbi_amt', 'n_niit', 'niit_amt', 'n_actc', 'actc_amt', 'n_exempt', 'exempt_amt',
+               'taxes_ded_amt']
+# Five dollar amounts are not state targets; their counts are. With capital gains, partnership and S corporation
+# income, or itemized deductions as targets, the integrated solve does not converge within its limit of Newton steps.
+# Income or sales taxes and real estate taxes are amounts before the limit on the deduction, which no national target
+# holds: as shares of the file's own total they let that total drift. The deduction as claimed (taxes_ded_amt), which
+# has a national target, is the state target in their place.
+NOT_STATE_TARGETS = ['kg_amt', 'pship_amt', 'itemize_amt', 'salt_amt', 're_tax_amt']
 FINAL_ITEMS = [v for v in ISELIN_21 + [v for v in HELD_OUT if v != 'kg_amt_pos'] + EXTRA_ITEMS if v not in NOT_STATE_TARGETS]
 # An item has no targets in an AGI group where its effective number of records is under MIN_EFFECTIVE (about 5 for each
 # of the 53 areas). The effective number is (sum |w x|)^2 / sum (w x)^2 over the records other than the Forbes records,
@@ -224,6 +235,8 @@ def ht2_values(ht2, item):
     """The item's Historic Table 2 values, in dollars or returns: one row per AGI group (1-10), one column per area.
     None if the year's table lacks a column the item needs."""
     codes = ITEMS[item][0]
+    if isinstance(codes[0], list):
+        codes = next((c for c in codes if all(k in ht2.columns for k in c)), codes[0])
     if any(c not in ht2.columns for c in codes):
         return None
     d = ht2[(ht2['state'] != 'US') & (ht2['group'] > 0)]
@@ -273,9 +286,11 @@ def cell_rule(values, file_total):
 
 def filer_targets(df, group, ht2, items, year):
     """The filer targets of one year, one row per area, AGI group and item, and notes on the cells with no target. df
-    holds the file's filers and group their AGI groups. Example, 2019, wages in the $50,000-75,000 group in
-    Connecticut: the IRS puts 1.141% of the national total there and the file's total is $1,070.2 billion, so the
-    target is $12.21 billion."""
+    holds the file's filers, with their weights at the start of the solve, and group their AGI groups. Each row gives
+    the area's share and the target at the starting weights (the share times the file's national total in the group).
+    Whether a cell has a target is decided at those weights too. Example, 2019, wages in the $50,000-75,000 group in
+    Connecticut: the IRS puts 1.141% of the national total there; with $1,070 billion in the group at the start, the
+    target is about $12.2 billion, and the solve meets 1.141% of the group's final total."""
     w = df['weight'].to_numpy(float)
     x = item_vectors(df, items)
     rows, notes = [], []
@@ -427,9 +442,9 @@ def rake(seed, row, col, steps=200):
 
 def nonfiler_targets(df_nf, ht2, year, data_dir):
     """The non-filer targets: adults by state and age band. The CPS's adults by state and band are raked to the states'
-    residuals and to the file's non-filer adults by band. Each state's target in a band is the file's adults in the
-    band times the state's share of the band. Returns the targets, the table by state, and each record's adults by
-    band (X)."""
+    residuals and to the file's non-filer adults by band, at the weights in df_nf (the starting weights). Each state's
+    target in a band is the state's share of the band; its value in the table is that share times the file's adults in
+    the band at those weights. Returns the targets, the table by state, and each record's adults by band (X)."""
     table = nonfiler_state_table(year, ht2, data_dir)
     a1, a2 = df_nf['age1'].to_numpy(float), df_nf['age2'].to_numpy(float)
     married = df_nf['married'].to_numpy() == 1
