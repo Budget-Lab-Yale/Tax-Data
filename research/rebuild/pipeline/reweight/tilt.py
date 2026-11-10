@@ -211,7 +211,7 @@ def list_targets(g19, w0, fixed, filer, prescale, soi):
     if prescale == 'demographic':
         sub = rows[rows['kind'].isin(PRESCALE_KINDS)].reset_index(drop=True)
         Fs, Ts, avs = TLS.conditions(g19, sub, w0)
-        Fs = Fs.toarray()   # the prescaling's own cells are few, and their table is kept in full
+        Fs = Fs.toarray(order='C')   # the prescaling's own cells are few, and their table is kept in full
         w0, prescaled = prescale_demographic(w0, Fs, Ts, sub['se'].to_numpy(float), sub['identity'].to_numpy(bool), avs,
                                              sub, filer, g19['married'].to_numpy(), soi, fixed)
         del Fs
