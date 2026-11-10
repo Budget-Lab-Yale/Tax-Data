@@ -1089,13 +1089,16 @@ its 2023 split.
   where the areas' values cancel or the file and the IRS have opposite signs, where the list records hold 90% or more
   of it, or where fewer than 250 effective records stand behind the item in the group (about 5 for each of the 53
   areas). The list is `FINAL_ITEMS` (49-52 items a year, counts and amounts): returns, single, joint and head of
-  household returns, people, AGI, wages, interest, dividends, returns with capital gains, state and local taxes, real
-  estate taxes, mortgage interest, the EITC; business income, pensions, Social Security, federal income tax; IRA
+  household returns, people, AGI, wages, interest, dividends, returns with capital gains, returns with state and
+  local income or sales taxes, returns with real estate taxes, the deduction for state and local taxes as claimed
+  (after the $10,000 limit from 2018; Historic Table 2's A18460), mortgage interest, the EITC; business income, pensions, Social Security, federal income tax; IRA
   distributions, pensions and annuities, unemployment, qualified dividends, partnership and S corporation returns,
   taxable income, itemizers, charity, self-employment tax, state refunds, the QBI deduction, the net investment income
-  tax, the refundable child credit and tax-exempt interest, each where the year's table has the line. Three dollar
-  amounts are not state targets (`NOT_STATE_TARGETS`): capital gains, partnership and S corporation income, and
-  itemized deductions; their counts are.
+  tax, the refundable child credit and tax-exempt interest, each where the year's table has the line. Five dollar
+  amounts are not state targets (`NOT_STATE_TARGETS`); their counts are. Capital gains, partnership and S corporation
+  income, and itemized deductions keep the solve from converging. Income or sales taxes and real estate taxes before
+  the limit have no national target, and as shares of the file's own total they let that total drift (in a 2019 test,
+  income or sales taxes at $1 million and over rose from $103 billion to $184 billion against the IRS's $86 billion).
 - **Non-filer targets** (`state_targets.nonfiler_state_table`). A state's share of non-filer adults is its share of:
   CPS adults in tax units (heads and spouses of the training table's CPS rows, pooled over the five CPS years with
   equal weights, times the year's CPS total), less IRS adults on returns (N1 + MARS2), plus dependent returns (SOI Table
