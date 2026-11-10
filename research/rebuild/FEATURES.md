@@ -926,7 +926,14 @@ Every record's federal income and payroll taxes under the target year's law come
 1. The file becomes the calculator's input frame (`shared/calculator_input.convert`, `CALCULATOR_CONTRACT.md`).
 2. tax-simulator-gpu's batch command (`python -m taxmodel.run.batch`) runs it on the CPU in the calculator's own Python
    environment (`taxes.python`), from a copy of that repository at the pinned commit (`taxes.commit`, written once under
-   `<out>/lib/`). About 20 seconds for 457,000 records.
+   `<out>/lib/`). The records go through in pieces of at most `taxes.records_per_piece` records (100,000), one run of
+   the command per piece; the run that also computes marginal rates takes pieces of half that size. This bounds the
+   calculator's memory, which grows with the number of records in a run: about 2.3 GB a piece, against 8 to 14 GB for
+   457,000 records at once. The pieces give the same taxes as one run, column for column: a record's taxes do not
+   depend on the other records, and the calculator's random draws are keyed by record id. Each run takes about 12
+   seconds, most of it the calculator's start, whatever the number of records. The five passes of a year (the refund
+   rule, three Schedule A passes and the final run) are 30 runs for 457,000 records, about 5 minutes; a larger
+   `records_per_piece` trades memory for time.
 3. The output columns join the file by record id, each the calculator's name with `calc_` in front: AGI, itemizing and
    itemized deductions claimed, the standard deduction, the QBI deduction, taxable income, income tax before credits,
    the AMT, the child credit's two parts, the EITC, nonrefundable and refundable credits, income tax after credits, the
@@ -1033,6 +1040,12 @@ groups). The families in a past year, with 2019's counts:
   is repeated once at the first answer's group weights if any moved more than 0.1%.
 - Newton's method on the multipliers, at most 150 steps in all (`newton_budget`), stopping when the largest gradient is
   below 1e-8. A slow solve is a reason to check the targets, not to raise the budget.
+- The table of conditions (one row per record, one column per target, each entry the record's contribution to the
+  target) is kept as a sparse matrix, which stores only the entries that are not zero: about 7% of them in a past year
+  (`reweight/sparse_table.py`; 0.5 GB for 457,000 records and 1,325 targets, against 4.8 GB in full). The Hessian is
+  added up over blocks of records, each written out in full (about 25,000 records a block at 1,325 targets). The
+  weights agree with those from the full table to rounding: the largest change on one record is under one part in a
+  billion. The number of Newton steps can differ by a few, because the last steps work at the level of rounding.
 - Records held fixed (the Forbes list) enter as fixed amounts; `solver.fixed_feasibility` checks before the solve what
   the others must reach (`top_feasibility.csv`).
 
@@ -1153,12 +1166,17 @@ report.
 | training, per network | GPU (H200) | about 62 minutes |
 | a past year's folder, targets and dollar maps | CPU | about 3 minutes |
 | draw and top step | GPU, 120 GB | 45-50 minutes (draw 17, top 31) |
-| a past year's solve inputs (the start, prescaling, taxes, targets) | 4 CPUs, 72 GB | about 5 minutes |
+| a past year's solve inputs (the start, prescaling, taxes, targets) | 4 CPUs, 7 GB | about 8 minutes |
 | state chances | GPU | about a minute |
-| integrated state solve, with the outputs and the report | 16 CPUs, 96 GB | 15-45 minutes |
-| projection year (solve and carried split) | 4 CPUs | 3-4 minutes |
-| Tax-Simulator file | 2 CPUs | about a minute |
+| integrated state solve, with the outputs and the report | 16 CPUs, 11 GB | 15-45 minutes |
+| projection year (solve and carried split) | 4 CPUs, 11 GB | about 4 minutes |
+| Tax-Simulator file | 2 CPUs, 8 GB | about 2 minutes |
 | package and round trip | CPU | about 3 minutes |
+
+The memory figures are the most the step's processes held at once, at 2019's size (457,000 records, 1,325 national
+targets) and for 2024 (464,000 records); they leave out the file cache, which Slurm's own figure includes. Three
+things keep them low: the calculator runs on pieces of the records, the table of conditions is sparse, and the
+reweighting stages give freed memory back to the operating system (`shared/common.py`, "Memory").
 
 The GPU is used only to train, draw, run the top step and read state chances. Training and generation run on H100 or
 H200 GPUs; a stack drawn on a B200 once had about 11% fewer rare business holders, untested since. Every year
