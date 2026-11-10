@@ -1,9 +1,14 @@
-"""The split of a married couple's earnings, on the PUF and the CPS (settings "earn_split").
+"""How a married couple's earnings are split between the two spouses, on the PUF and the CPS (settings "earn_split").
 
-Reads the PUF's Schedule SE fields (E30400, the couple's net earnings up to the Social Security wage base; E30500,
-the spouse's part) and the demographic file's EARNSPLIT code. Gives part_se, the spouse's share of Schedule SE
-earnings and the earnings split code, with probabilities from a classifier where a joint return has no demographics.
-FEATURES.md, "The PUF", has the method.
+The PUF's demographic file gives each joint return an earnings split code (EARNSPLIT). The code says what share of
+the couple's earnings the primary filer has: 1 means 75% or more, 2 means between 25% and 75%, and 3 means 25% or
+less. Code 0 means the couple has no earnings. Some joint returns have no demographic information and so no code.
+For these returns a classifier, fitted on the returns that have a code, gives the probability of each code.
+
+The module also reads the PUF's Schedule SE fields: E30400, the couple's self-employment earnings up to the Social
+Security wage base, and E30500, the spouse's part of them. From these and the reported self-employment tax it
+computes part_se, the self-employment income that is not on Schedule C or F (mostly partnership income).
+FEATURES.md, "The PUF", describes both rules.
 """
 import numpy as np
 import pandas as pd
@@ -12,14 +17,17 @@ from sklearn.ensemble import HistGradientBoostingClassifier
 from shared import common
 
 S = common.SETTINGS['earn_split']
-SE_FACTOR = float(S['se_factor'])          # Schedule SE: net earnings are 92.35% of the self-employment income
-SE_FLOOR = float(S['se_floor'])            # and none are counted below $400
-SE_RATE_SS = float(S['se_rate_social_security'])     # Schedule SE's Social Security rate, on E30400
-SE_RATE_MEDICARE = float(S['se_rate_medicare'])      # and its Medicare rate, on all net earnings
-SE_WAGE_BASE = float(S['se_wage_base'])              # the Social Security wage base of the PUF year
+# Schedule SE counts 92.35% of self-employment income as net earnings, and counts no net earnings below $400.
+SE_FACTOR = float(S['se_factor'])
+SE_FLOOR = float(S['se_floor'])
+SE_RATE_SS = float(S['se_rate_social_security'])     # the Social Security tax rate, applied to E30400
+SE_RATE_MEDICARE = float(S['se_rate_medicare'])      # the Medicare tax rate, applied to all net earnings
+SE_WAGE_BASE = float(S['se_wage_base'])              # the Social Security wage base in the PUF's year
+# How far net earnings may differ from 92.35% of Schedules C and F before the difference counts as part_se
 BEYOND_SHARE, BEYOND_DOLLARS = float(S['se_beyond_share']), float(S['se_beyond_dollars'])
 N_CODES = 4
-# the primary filer's share of the couple's earnings in each code (closed: a share of exactly 25% or 75% fits both)
+# The primary filer's share of the couple's earnings in each code. The ranges include their ends, so a share of
+# exactly 25% or 75% fits two codes.
 RANGES = {1: (0.75, 1.0), 2: (0.25, 0.75), 3: (0.0, 0.25)}
 LOW = np.array([np.nan, 0.75, 0.25, 0.0])
 HIGH = np.array([np.nan, 1.0, 0.75, 0.25])
@@ -27,15 +35,19 @@ PUF_FIELDS = ['RECID', 'S006', 'MARS', 'E00100', 'E00200', 'E30400', 'E30500', '
               'XOPAR', 'XOODEP']
 
 
+# ---- Schedule SE earnings and part_se ----
+
 def se_earnings(x):
-    """A person's Schedule SE net earnings from self-employment income x: 0.9235 x where that is $400 or more, else 0."""
+    """A person's Schedule SE net earnings from self-employment income x: 92.35% of x where that is $400 or more,
+    and zero otherwise."""
     e = SE_FACTOR * np.asarray(x, float)
     return np.where(e >= SE_FLOOR, e, 0.0)
 
 
 def half_rounding_unit(x):
-    """Half the PUF's rounding unit for an amount (2015 booklet, ninth disclosure step): nearest $10 up to $10,000,
-    nearest $100 up to $100,000, four significant digits above that; an amount below $5 is set to $2."""
+    """Half of the unit to which the PUF rounds an amount (the 2015 PUF booklet, ninth disclosure step). Amounts up
+    to $10,000 are rounded to the nearest $10, amounts up to $100,000 to the nearest $100, and larger amounts to four
+    significant digits. An amount below $5 is set to $2."""
     a = np.abs(np.asarray(x, float))
     out = np.full(a.shape, 5.0)
     out[a >= 1e4] = 50.0
@@ -46,11 +58,13 @@ def half_rounding_unit(x):
 
 
 def schedule_se_earnings(tax, capped):
-    """The couple's Schedule SE net earnings, read from the reported tax (E09400) and E30400, the lesser of net
-    earnings and the room under the wage base. The tax is 12.4% of E30400 plus 2.9% of net earnings, so net earnings
-    are (tax - 12.4% x E30400) / 2.9%. Where the tax is within rounding of 15.3% x E30400 the cap does not bind and
-    net earnings are E30400, which avoids magnifying the tax's rounding. Example: a partner with no wages, tax $43,694,
-    E30400 $118,500: (43,694 - 14,694) / 0.029 = $1,000,000."""
+    """The couple's Schedule SE net earnings, computed from the reported self-employment tax (E09400) and E30400.
+
+    E30400 is the smaller of net earnings and the room left under the Social Security wage base. The tax is 12.4% of
+    E30400 plus 2.9% of all net earnings, so net earnings are (tax - 12.4% x E30400) / 2.9%. Where the tax is within
+    rounding of 15.3% x E30400, the wage base does not bind and net earnings are E30400. This avoids dividing the
+    tax's rounding error by 2.9%. Example: a partner with no wages reports tax of $43,694 and E30400 of $118,500.
+    Net earnings are (43,694 - 14,694) / 0.029 = $1,000,000."""
     tax, capped = np.asarray(tax, float), np.asarray(capped, float)
     both = SE_RATE_SS + SE_RATE_MEDICARE
     same = np.abs(tax - both * capped) <= half_rounding_unit(tax) + both * half_rounding_unit(capped)
@@ -58,10 +72,12 @@ def schedule_se_earnings(tax, capped):
 
 
 def part_se_from_schedule_se(tax, capped, sch_cf, partnership):
-    """part_se: self-employment income other than Schedules C and F, before the 92.35% factor, so that Schedules C
-    and F plus part_se is the income whose tax is the reported tax. It is net earnings / 0.9235 less C and F on a
-    return with partnership income or loss, and on other returns where that difference is beyond rounding; else zero.
-    It can be negative. Arguments: E09400, E30400, E00900 + E02100, and whether the return has partnership income."""
+    """part_se: self-employment income other than Schedules C and F, before the 92.35% factor.
+
+    Schedules C and F plus part_se is the income on which the reported tax is due. part_se equals net earnings /
+    0.9235 less Schedules C and F on two kinds of return: those with partnership income or loss, and others where
+    that difference is larger than rounding. On all other returns it is zero. It can be negative. The arguments are
+    E09400, E30400, E00900 + E02100, and whether the return has partnership income."""
     sch_cf = np.asarray(sch_cf, float)
     net = schedule_se_earnings(tax, capped)
     total = np.where(net > 0, net / SE_FACTOR, 0.0)
@@ -71,18 +87,24 @@ def part_se_from_schedule_se(tax, capped, sch_cf, partnership):
     return np.where(np.asarray(partnership, bool) | (beyond & ~nothing), total - sch_cf, 0.0)
 
 
+# ---- The earnings split code ----
+
 def code_of(primary, total):
-    """EARNSPLIT's code from the primary's earnings and the couple's: 0 where the total is not above zero."""
+    """The earnings split code from the primary filer's earnings and the couple's total earnings. The code is 0
+    where the total is zero or negative."""
     primary, total = np.asarray(primary, float), np.asarray(total, float)
     share = np.where(total > 0, primary / np.where(total > 0, total, 1.0), np.nan)
     return np.where(total > 0, np.where(share >= 0.75, 1, np.where(share > 0.25, 2, 3)), 0).astype(np.int64)
 
 
 def wage_share_bounds(wages, e1, e2, code):
-    """The spouse's share of the couple's wages that puts the primary's share of earnings, (wages x (1 - share) + e1) /
-    (wages + e1 + e2), in the code's range; e1, e2 each person's Schedule SE earnings. Returns (low, high, unreachable):
-    low = high = NaN where there is no bound (code 0, or no wages); where no share reaches the range, the share that
-    comes nearest (0 or 1), flagged unreachable."""
+    """The range of the spouse's share of the couple's wages that is consistent with the earnings split code.
+
+    e1 and e2 are each spouse's Schedule SE earnings. With a wage share s for the spouse, the primary filer's share
+    of earnings is (wages x (1 - s) + e1) / (wages + e1 + e2). The function returns (low, high, unreachable). low
+    and high are NaN where there is no bound: where the code is 0 or the couple has no wages. Where no wage share
+    puts the primary filer's share in the code's range, low and high are the share that comes nearest (0 or 1), and
+    unreachable is True."""
     w = np.maximum(np.asarray(wages, float), 0.0)
     e1, e2, code = np.asarray(e1, float), np.asarray(e2, float), np.asarray(code)
     T = w + e1 + e2
@@ -97,8 +119,11 @@ def wage_share_bounds(wages, e1, e2, code):
     return np.where(on, lo, np.nan), np.where(on, hi, np.nan), unreachable
 
 
-# ---- the PUF: observed codes, and probabilities where there is none ----------------------------------------------
+# ---- The PUF's codes, and probabilities where a return has no code ----
+
 def _frame(puf):
+    """The PUF fields this module uses, joined to the demographic file's EARNSPLIT. Adds the weight, the couple's
+    wages and Schedule SE earnings, and the lowest and highest share of earnings the primary filer can have."""
     p = puf[PUF_FIELDS].copy()
     g = pd.read_csv(common.SETTINGS['ages']['puf_demographics'], usecols=['RECID', 'EARNSPLIT'])
     p = p.merge(g, on='RECID', how='left', validate='one_to_one')
@@ -109,12 +134,14 @@ def _frame(puf):
     p['e1'] = p.E - p.e2
     p['T'] = p.W + p.E
     T = p['T'].where(p['T'] > 0)
-    p['lo'] = (p.e1 / T).fillna(0.0)                 # the primary's share with all the wages on the spouse
-    p['hi'] = ((p.W + p.e1) / T).fillna(0.0)         # and with all of them on the primary
+    p['lo'] = (p.e1 / T).fillna(0.0)                 # the primary filer's share if the spouse had all the wages
+    p['hi'] = ((p.W + p.e1) / T).fillna(0.0)         # the primary filer's share if they had all the wages
     return p
 
 
 def _features(d):
+    """The classifier's inputs: AGI, wages, Schedule SE earnings and the spouse's part of them, Social Security,
+    pensions and dependents, most on a log scale."""
     f = pd.DataFrame(index=d.index)
     a = d.E00100.astype(float)
     f['agi'] = np.sign(a) * np.log1p(np.abs(a))
@@ -132,12 +159,16 @@ def _features(d):
 
 
 def _allowed(d):
-    """[n, 3] whether codes 1-3 can be reached by some split of the wages (closed ranges)."""
+    """An (n, 3) array saying whether each of codes 1-3 can be reached by some division of the couple's wages
+    between the spouses (the code ranges include their ends)."""
     return np.column_stack([(d['hi'].to_numpy() >= RANGES[k][0] - 1e-12) & (d['lo'].to_numpy() <= RANGES[k][1] + 1e-12)
                             for k in (1, 2, 3)])
 
 
 def _fit_predict(known, target):
+    """Fits a gradient boosted classifier of the code on the returns in `known` and gives each return in `target`
+    the probability of codes 1-3. A code that no division of the wages can reach gets probability zero, and the
+    others are scaled to sum to one."""
     g = S['model']
     m = HistGradientBoostingClassifier(max_iter=int(g['max_iter']), learning_rate=float(g['learning_rate']),
                                        max_leaf_nodes=int(g['max_leaf_nodes']), min_samples_leaf=int(g['min_samples_leaf']),
@@ -151,9 +182,14 @@ def _fit_predict(known, target):
 
 
 def puf_codes(puf):
-    """Per PUF record: earn_split's code (-1 where probabilities stand in for it) and an (n, 4) array of
-    probabilities (zero rows where the code is known). Writes a check of the classifier on known codes at higher
-    AGI (data/earn_split_step0_check.csv)."""
+    """The earnings split code of each PUF record, and probabilities where the code is unknown.
+
+    Returns the code (-1 where probabilities stand in for it) and an (n, 4) array of the probabilities of codes 0-3
+    (rows of zeros where the code is known). Also writes a test of the classifier (data/earn_split_step0_check.csv):
+    it is fitted on returns with AGI below $250,000 and its predicted shares are compared with the known codes of
+    returns with AGI of $250,000 to $400,000."""
+    # 1. Read the codes. A return that is not joint has code 0. A joint return without demographics and without
+    #    earnings also gets code 0; one with earnings gets -1 (unknown).
     p = _frame(puf)
     joint = (p.MARS == 2).to_numpy()
     have = p.EARNSPLIT.notna().to_numpy()
@@ -161,11 +197,11 @@ def puf_codes(puf):
     earns = (p['T'] > 0).to_numpy()
     code = np.where(joint, p.EARNSPLIT.fillna(-1).to_numpy(), 0).astype(np.int64)
     missing = joint & ~have
-    code[missing & ~earns] = 0                                     # no earnings: nothing to split
+    code[missing & ~earns] = 0
     todo = missing & earns
     code[todo] = -1
     w = p.w.to_numpy()
-    # the known codes against the return's own earnings (code 0 means no earnings)
+    # 2. Report how often the known codes disagree with the return's own earnings. Code 0 should mean no earnings.
     kj = joint & have
     off0 = kj & earns & (code == 0)
     off1 = kj & ~earns & (code > 0)
@@ -173,10 +209,11 @@ def puf_codes(puf):
     common.say(f'earn_split: joint returns with demographics {w[kj].sum() / 1e6:.2f}M; code 0 with earnings '
                f'{w[off0].sum() / 1e6:.3f}M, a code above 0 with none {w[off1].sum() / 1e6:.3f}M, a code no split of '
                f'the wages reaches {w[unreach].sum() / 1e6:.3f}M ({int(unreach.sum())} records; kept as given)')
+    # 3. Fit the classifier on the known codes above 0 and predict the unknown codes.
     known = p[kj & earns & (code > 0)]
     probs = np.zeros((len(p), N_CODES))
     probs[todo, 1:] = _fit_predict(known, p[todo])
-    # the check: fitted below AGI $250,000, the known codes at $250,000-400,000 predicted
+    # 4. The test: fit below AGI $250,000 and predict the known codes at $250,000-400,000.
     lo_line, hi_line = S['check_agi']
     band = known.E00100.between(lo_line, hi_line, inclusive='left')
     fit, held = known[known.E00100 < lo_line], known[band]
@@ -190,6 +227,8 @@ def puf_codes(puf):
                 rows.append({'returns at AGI $250,000-400,000': lab, 'code': k, 'records': int(sel.sum()),
                              'true share (%)': 100 * (hw * (held.EARNSPLIT.to_numpy()[sel] == k)).sum() / hw.sum(),
                              'predicted share (%)': 100 * (hw * ph[sel, k - 1]).sum() / hw.sum()})
+    # 5. Add the predicted codes of the returns without demographics, with the PUF booklet's counts beside them, and
+    #    write the test.
     tw = w[todo]
     for k in (1, 2, 3):
         rows.append({'returns at AGI $250,000-400,000': 'joint returns with no demographics and earnings (step 0)',

@@ -1,8 +1,13 @@
 """How each dollar item is grown from one year to another.
 
-Each item has one line in the target year's targets_config/<year>/growth.yaml: the series it grows with, what the
-series is measured per (return with the item, holder, household), how negative values are grown, and a reason. The
-series' data are in research/rebuild/resources/growth/. The rules are in FEATURES.md, "Dollars in the target year".
+Each item has one line in the target year's targets_config/<year>/growth.yaml. The line names the series the item
+grows with, what the series is measured per (a return with the item, a holder, a household), how negative values are
+grown, and the reason for the choice. An item's growth factor from one year to another is the series' level in the
+later year over its level in the earlier year. For the series "soi 1.4" it is SOI's growth in dollars per return with
+the item (prep/soi.py), carried past SOI's last year by CBO's projections. After the last year a series' data cover,
+its level grows with personal income per person (BEA's, then CBO's projection, then Macro-Projections' GDP per person).
+The SCF's series are applied by scale/maps.py. The series' data are in research/rebuild/resources/growth/.
+FEATURES.md, "Dollars in the target year", describes the rules.
 """
 import os
 
@@ -15,8 +20,8 @@ from prep import soi as TG
 
 CONFIG = os.path.join(common.PIPELINE, 'targets_config')
 RESOURCES = os.path.join(common.RESOURCES, 'growth')
-LINE_KEYS = {'source', 'negative', 'measure', 'reason'}
-# series: (the measure in words, its data files in RESOURCES)
+LINE_KEYS = {'source', 'negative', 'measure', 'reason'}   # the keys every growth line has
+# Each series: (what it measures, in words; its data files in RESOURCES, or None if it reads other sources)
 SERIES = {
     'soi 1.4': ('dollars per return with the item, SOI Table 1.4', None),
     'agi per return': ('AGI per return, all returns (SOI Table 1.1), extended by BEA personal income per capita',
@@ -45,23 +50,27 @@ SERIES = {
 
 
 def _yaml(path):
+    """Reads a YAML file."""
     with open(path) as f:
         return yaml.safe_load(f)
 
 
 def path(year):
+    """The growth.yaml of a target year."""
     return os.path.join(CONFIG, str(int(year)), 'growth.yaml')
 
 
 def _is_none(spec):
+    """Whether a source is 'none: <reason>': the amount is not grown."""
     return isinstance(spec, str) and spec.split(':')[0].strip() == 'none'
 
 
-_LOADED = {}
+_LOADED = {}   # each year's growth lines, read once
 
 
 def load(year=common.TARGET_YEAR):
-    """{item: line} of the year's growth.yaml, each line's keys and series checked."""
+    """{item: line} of the year's growth.yaml. Checks each line's keys and series, and stops with the full list of
+    errors."""
     year = int(year)
     if year not in _LOADED:
         p = path(year)
@@ -97,22 +106,24 @@ def load(year=common.TARGET_YEAR):
 
 
 def line(v, year=common.TARGET_YEAR):
+    """The growth line of item v in the target year's configuration."""
     items = load(year)
     assert v in items, f'{path(year)}: no growth line for {v} (every dollar item needs one)'
     return items[v]
 
 
-# ---- the series --------------------------------------------------------------------------------------------------
-_CSV = {}
+# ---- The series ----
+_CSV = {}   # each series file, read once
 
 
 def _csv(name):
+    """A series file in RESOURCES as {year: value}. A year may lack a value only with a note saying why; such a year
+    is left out of the series."""
     if name not in _CSV:
         f = os.path.join(RESOURCES, name)
         assert os.path.exists(f), f'growth series file missing: {f}'
         d = pd.read_csv(f)
         assert not d['year'].isna().any() and d['year'].is_unique, f'{f}: a year missing or twice'
-        # A year with no value is allowed only with a note saying why. It is left out of the series.
         gap = d['value'].isna()
         note = d['note'].fillna('').astype(str).str.strip() if 'note' in d else pd.Series('', index=d.index)
         assert not (gap & (note == '')).any(), f'{f}: a value missing with no note: {d.loc[gap & (note == ""), "year"].tolist()}'
@@ -121,6 +132,7 @@ def _csv(name):
 
 
 def _at(s, y, name):
+    """A series' value in year y. Stops if the series has no value for y."""
     if y not in s.index:
         raise KeyError(f'growth series {name}: no value for {y} (it covers {int(s.index.min())}-{int(s.index.max())}; '
                        f'no extension is written for it)')
@@ -132,6 +144,7 @@ def population(y):
     return _at(_csv('ss_area_population.csv'), y, 'Social Security area population')
 
 
+# The Financial Accounts (Z.1) category of each SCF balance-sheet item, used to grow it after the last SCF wave.
 SCF_Z1_CATEGORIES = {
     **{f'value.{x}': 'deposits_bonds' for x in ('cash', 'bonds')},
     'value.equities': 'stocks_funds',
@@ -146,8 +159,8 @@ SCF_Z1_CATEGORIES = {
 
 
 def scf_extension(a, b, item=None):
-    """Growth per person of an SCF item from year a to b, after the last SCF wave, by the item's Financial Accounts
-    (Z.1) category. Items outside the nine categories grow with household net worth."""
+    """The growth per person of an SCF item from year a to year b, after the last SCF wave, by the item's Financial
+    Accounts (Z.1) category. An item outside the nine categories grows with household net worth."""
     category = SCF_Z1_CATEGORIES.get(item)
     name = f'z1_scf_{category}.csv' if category else 'z1_household_net_worth.csv'
     series = _csv(name)
@@ -155,6 +168,8 @@ def scf_extension(a, b, item=None):
 
 
 def agi_per_return(y):
+    """AGI per return, all returns, from SOI's totals. After SOI's last year it grows with personal income per
+    person."""
     tot = TG.totals()
     years = TG.total_years()
     last = years[-1]
@@ -162,12 +177,12 @@ def agi_per_return(y):
     if y <= last:
         assert y in years, f'SOI: no totals for {y}'
         return lev(y)
-    return lev(last) * income_per_person_growth(last, y)   # after SOI's last year
+    return lev(last) * income_per_person_growth(last, y)
 
 
 def income_per_person_growth(a, b):
-    """Growth of personal income per person from year a to b: BEA's (NIPA Table 7.1 line 3), then CBO's projection
-    through the last CBO year used, then nominal GDP per person from Macro-Projections."""
+    """The growth of personal income per person from year a to year b: BEA's (NIPA Table 7.1 line 3) while it
+    lasts, then CBO's projection through the last CBO year used, then nominal GDP per person from Macro-Projections."""
     from scale import projection_growth as PG
     L = PG.cbo_last_year()
     if b > L:
@@ -184,8 +199,8 @@ def income_per_person_growth(a, b):
 
 
 def level(spec, y):
-    """The level of a series in year y (not SOI 1.4, which is a ratio between years). After the last year its files
-    cover, the last level is grown with personal income per person."""
+    """The level of a series in year y (not SOI Table 1.4, whose growth is a ratio between years). After the last year
+    its files cover, the last level is grown with personal income per person."""
     files = SERIES[spec['series']][1]
     if files:
         last = min(int(_csv(f).index.max()) for f in files)
@@ -195,6 +210,7 @@ def level(spec, y):
 
 
 def _level(spec, y):
+    """The level of a series in a year that its data cover."""
     s = spec['series']
     if s == 'agi per return':
         return agi_per_return(y)
@@ -230,12 +246,12 @@ def _factor(spec, y):
     return level(spec, y) / level(spec, common.PUF_YEAR)
 
 
-_FACTORS = {}
+_FACTORS = {}   # each (item, year, target year)'s factors, computed once
 
 
 def factors(v, y, year=common.TARGET_YEAR):
-    """(factor for positive values, for negative values) of PUF amount v from the PUF year to year y, by the target
-    year's growth line for v."""
+    """The growth factors of PUF amount v from the PUF year to year y, by the target year's growth line for v: (the
+    factor for positive values, the factor for negative values)."""
     key = (v, int(y), int(year))
     if key not in _FACTORS:
         ln = line(v, year)
@@ -264,6 +280,7 @@ def between(v, s, t, year=common.TARGET_YEAR):
 
 
 def describe(v, year=common.TARGET_YEAR):
+    """The growth line of item v in words, for messages and reports."""
     ln = line(v, year)
     src = ln['source']
     if _is_none(src):
@@ -275,13 +292,14 @@ def describe(v, year=common.TARGET_YEAR):
                   f"; negative values: {neg['series']}")
 
 
-# ---- the check before every run ------------------------------------------------------------------------------------
-_CHECKED = set()
+# ---- The check before every run ----
+_CHECKED = set()   # the years already checked
 
 
 def check(year=common.TARGET_YEAR):
-    """Check the year's growth.yaml: every dollar item has a line, no line names an unknown item, each survey's lines
-    name a series its code applies, and every PUF item has a positive factor to the year. Stops with the full list."""
+    """Checks the year's growth.yaml: every dollar item has a line, no line names an unknown item, each survey's lines
+    name a series that its code applies, and every PUF item has a positive factor to the year. Stops with the full
+    list of problems."""
     year = int(year)
     if year in _CHECKED:
         return

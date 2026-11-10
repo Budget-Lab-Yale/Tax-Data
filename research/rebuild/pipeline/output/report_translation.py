@@ -1,7 +1,10 @@
-"""The translation report of a trained run: for every row of the translation table and every survey year, the survey as
-reported, after the definition fixes, after function 1, after function 2, and the tax data, side by side, with a
-section on wages first. Writes translation_report.csv and translation_report.md to the run's model folder, or, run on
-a year folder, to the year's tilt folder beside the other reports.
+"""The translation report of a trained run. Translation puts each survey's items on the tax data's terms (FEATURES.md,
+"Translation: putting the surveys on the PUF's terms"). For every row of the translation table and every survey year,
+the report shows the item side by side at each stage: as reported; after the definition fixes ("link"); after
+function 1, which gives each holder the tax data's amount at the same rank; after function 2, the fill-in, which
+gives some survey zeros an amount; and in the tax data. A section on wages comes first. Writes translation_report.csv
+and translation_report.md to the run's model folder or, run on a year folder, to the year's tilt folder beside the
+other reports.
 """
 import os
 
@@ -14,7 +17,7 @@ from shared import translate as TR
 STAGES = ['as reported', 'link', 'after function 1', 'after function 2', 'tax data', 'survey', 'CPS (nearest year)',
           'CPS (same year)']
 
-# The wages section
+# ---- The wages section ----
 WAGE_STAGES = {'as reported': 'raw', 'link': 'link', 'after function 1': 'mapped', 'tax data': 'tax data'}
 WAGE_ROWS = ['units (millions)', 'with a positive amount (%)'] + [f'holders p{p} ($)' for p in TR.PERCENTILES] + \
     ['above $100,000 (millions)', 'above $1,000,000 (millions)', 'mean per unit ($)']
@@ -22,8 +25,8 @@ DEFERRAL_ROWS = ['traditional deferrals subtracted ($ billion)', 'units with def
                  'units not asked about deferrals (millions)', 'wages of units not asked ($ billion)']
 MOVE_ROWS = ['move: total, mapped over link (%)', 'move: median unit, mapped over link (%)',
              'move: units down by more than 10% (%)', 'move: units up by more than 10% (%)']
-# The expected move from the link wage to box 1 wages, in percent: about -3% where deferrals come off (health premiums
-# and other cafeteria-plan items remain) and about -8% where they do not.
+# The expected move from the link wage to box 1 wages, in percent: about -3% where the survey's deferrals come off
+# (health premiums and other cafeteria-plan items remain) and about -8% where they do not.
 EXPECTED = {True: -3.0, False: -8.0}
 
 
@@ -66,10 +69,12 @@ def wages_section(rep):
             pd.DataFrame(summary).to_markdown(index=False, floatfmt=',.1f'), ''] + blocks
 
 
+# ---- The stage after function 2 ----
+
 def after_fill_in(model_dir):
-    """The stage after function 2, as long report rows. The zero-reporters' weight is spread over the bands by the
-    trained model's fill-in, each band at its PUF median grown to the survey year, so this stage is approximate within
-    a band."""
+    """The stage after function 2, as report rows. The weight of the survey records that report zero is spread over
+    the dollar bands by the trained network's fill-in, and each band is valued at its PUF median grown to the survey
+    year. This stage is therefore approximate within a band."""
     import torch
     from pretrain import fillin
     from pretrain import model as M
@@ -88,14 +93,14 @@ def after_fill_in(model_dir):
         recs = fill.recs[s].cpu().numpy()
         year = train_rows['year'].to_numpy()[recs]
         w = train_rows['weight'].to_numpy(float)[recs]
-        zero = fill.zero[(s, v)].cpu().numpy()                      # the zero-reporters in the years filled in
+        zero = fill.zero[(s, v)].cpu().numpy()                      # the records reporting zero, in the years filled in
         dist = np.zeros((len(recs), fill.n_bands[v]))
         dist[zero] = fill.dist[(s, v)].double().cpu().numpy()
         med = np.array([np.nan if b['median'] is None else b['median'] for b in edges[f'puf/{common.PUF_YEAR}/{v}']['bands']])
         for y in sorted(set(year)):
             if not TR.fills_in(r, int(y)):
                 continue
-            # the zero-reporters' weight share in each band, over the training rows
+            # The share of the zero-reporters' weight in each band, over the training rows.
             m = (year == y) & zero
             share = (w[m, None] * dist[m]).sum(0) / w[m].sum()
             fp, fn = growth[str(y)][v]
@@ -111,20 +116,24 @@ def after_fill_in(model_dir):
     return rows
 
 
+# ---- The report ----
+
 def folders():
-    """The network's folder and the report's: in a training folder the run's own model folder for both; in a year
-    folder, whose model/ links to the training folder's, the first pooled network of settings generation.models and
-    the year's tilt folder, where the other reports go."""
+    """The network's folder and the report's folder. In a training folder, both are the run's own model folder. In a
+    year folder, whose model/ links to the training folder's, the network is the first of settings generation.models
+    and the report goes to the year's tilt folder, beside the other reports."""
     if os.path.exists(os.path.join(common.MODEL, 'model.pt')):
         return common.MODEL, common.MODEL
     return f"{common.OUT}/model/{common.SETTINGS['generation']['models'][0]['run']}", common.TILT
 
 
 def main():
+    # 1. Read the report rows that data preparation wrote, add the stage after function 2, and write them all.
     model_dir, out = folders()
     rep = pd.read_csv(f'{common.DATA}/translation_report.csv')
     rep = pd.concat([rep, pd.DataFrame(after_fill_in(model_dir))], ignore_index=True)
     rep.to_csv(os.path.join(out, 'translation_report.csv'), index=False)
+    # 2. The page: the wages section, then one table per survey, item and year.
     text = ['# Translation report', '',
             'Each row of the translation table and survey year, against the tax data for that year. After function 2: '
             'filled-in amounts at their band\'s PUF median (approximate within a band). Units in millions.', ''] + \

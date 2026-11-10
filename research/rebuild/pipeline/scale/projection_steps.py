@@ -1,8 +1,14 @@
-"""The projection years: the three steps that turn an earlier year's file into a projection year's start and targets.
-Step 1 calibrates the weights to people by marital status and single year of age; step 2 gives each dollar item one
-growth factor (step2_factor, called by start.grow_dollars); step 3 supplies the outside targets of the reweighting
-(outside_rows). Also the filing-season blend for the first projection year and the taxable interest rule after it.
-See FEATURES.md, "Projection years".
+"""The projection years: three steps that turn an earlier year's reweighted file into a projection year's start and
+targets.
+
+1. People. The weights are calibrated to the projection year's people by marital status and single year of age (step1).
+2. Dollars. Each dollar item gets one growth factor (step2_factor, called by start.grow_dollars).
+3. Targets. The module supplies the reweighting's targets from these steps (outside_rows): the people, the returns in
+   each group of age and marital status, and each targeted item's total.
+
+Two rules apply in particular years. The first projection year blends SOI's November filing-season tables with the
+national series (the "filing-season blend"). After the jump-off year, taxable interest grows with interest rates.
+FEATURES.md, "4. Scaling to the target year", "Projection years", describes the method.
 """
 import os
 from functools import lru_cache
@@ -17,15 +23,17 @@ from scale import projection_demographics as PD
 
 RESOURCES = common.RESOURCES
 P = common.SETTINGS['tilt']['projection']
-TOP_AGE = 80          # ages 80 and over are one cell (the file caps the primary's and spouse's ages at 80)
-# Married people under 18 count as unmarried, in the file and in CBO's population: CBO's population has no married
-# person under 16, so those cells could not be met.
+TOP_AGE = 80          # ages 80 and over are one cell (the file caps the primary filer's and spouse's ages at 80)
+# Married people under 18 count as unmarried, in the file and in CBO's population. CBO's population has no married
+# person under 16, and those cells could not be met.
 MARRIED_FROM = 18
 ITEMS_COLUMNS = ['column', 'series', 'kind', 'target', 'error', 'note']
 ADD_COLUMNS = ['column', 'first_year', 'last_year', 'percent', 'note']
+# The prefixes of the variable names this module defines for its targets (people, returns groups, an item's positive
+# and negative values, filing-season items).
 PREFIX = {'persons': 'pp__', 'returns': 'pr__', 'item_pos': 'pi+__', 'item_neg': 'pi-__', 'filing_season': 'fs__'}
 
-STATE = {}   # this run's year: the base file, its weights, the step 1 and 2 results and the start
+STATE = {}   # for this run's year: the base file, its weights, the results of steps 1 and 2, and the start
 
 
 def _path(p):
@@ -33,10 +41,12 @@ def _path(p):
     return p if os.path.isabs(p) else os.path.join(common.PIPELINE, p)
 
 
-# ---- people by marital status and single year of age ---------------------------------------------------------
+# ---- People by marital status and single year of age ----
+
 def person_matrix(df):
-    """(records x 2 (TOP_AGE + 1)) people counts, column married x (TOP_AGE + 1) + age. The primary, a joint return's
-    spouse and every dependent each count once; a dependent filer's own record counts only its dependents."""
+    """The number of people of each marital status and age in each record, as an array of records by
+    2 x (TOP_AGE + 1) cells. The column of a cell is married x (TOP_AGE + 1) + age. The primary filer, a joint
+    return's spouse and every dependent each count once. A dependent filer's own record counts only its dependents."""
     n = len(df)
     M = np.zeros((n, 2 * (TOP_AGE + 1)), np.float32)
     own = df['age_range'].to_numpy() < common.ADULT_RANGES
@@ -60,14 +70,15 @@ def person_matrix(df):
 
 
 def cell_label(k):
+    """The label of column k of person_matrix, such as 'married, age 40'."""
     m, a = divmod(int(k), TOP_AGE + 1)
     return f"{'married' if m else 'not married'}, age {a}{' and over' if a >= TOP_AGE else ''}"
 
 
 @lru_cache(maxsize=None)
 def _population_table():
-    """CBO's population by year (settings tilt.projection.population_dir), the historical and the projections file
-    together; a year in both must hold the same numbers."""
+    """CBO's population by year (settings tilt.projection.population_dir), from the historical and the projections
+    files together. A year in both files must have the same numbers in each."""
     d = P['population_dir']
     both = pd.concat([pd.read_csv(os.path.join(d, 'historical.csv')), pd.read_csv(os.path.join(d, 'projections.csv'))])
     cols = [c for c in both.columns if c.startswith(('married_', 'unmarried_'))]
@@ -89,10 +100,12 @@ def cbo_population(year, married, age):
     return float(v.sum())
 
 
-# ---- return groups: the primary filer's age band and marital status ---------------------------------------------
+# ---- Return groups: the primary filer's age band and marital status ----
+
 def return_group(df):
-    """Each record's return group: for units other than dependent filers, the primary's age band (settings
-    tilt.projection.return_age_edges, ages capped at 80) x married; for dependent filers their age range x married."""
+    """Each record's return group, a number. For units other than dependent filers, the group is the primary filer's
+    age band (settings tilt.projection.return_age_edges, ages capped at 80) by marital status. For dependent filers it
+    is their age range by marital status."""
     edges = list(P['return_age_edges'])
     rng = df['age_range'].to_numpy()
     a = np.minimum(df['age1'].to_numpy(float), TOP_AGE)
@@ -102,6 +115,7 @@ def return_group(df):
 
 
 def group_label(g):
+    """The label of return group g, such as 'primary aged 35-44, married'."""
     edges = list(P['return_age_edges'])
     band, m = divmod(int(g), 2)
     if band <= len(edges):
@@ -113,12 +127,15 @@ def group_label(g):
     return f"{name}, {'married' if m else 'not married'}"
 
 
-# ---- step 1 ---------------------------------------------------------------------------------------------------
+# ---- Step 1: the weights calibrated to people ----
+
 def step1(df, w, year, s):
-    """Step 1 weights for target year `year` from the year-s file df with weights w: the smallest Kullback-Leibler move
-    that meets the people counts and the dependent filers' six cells exactly. Each count is the s file's count times
-    CBO's growth of the same people. Forbes list records keep their weight, as the top step replaces them. Returns the
-    weights and a summary dict; sets STATE."""
+    """The step 1 weights for target year year, from the year-s file df with weights w. They are the weights with the
+    smallest Kullback-Leibler move from w that meet two sets of counts exactly: the people by marital status and single
+    year of age, and the dependent filers' six cells. Each count is the year-s file's count times CBO's growth of the
+    same people. The Forbes list's records keep their weights, because the top step replaces them. Returns the weights
+    and a summary dict, and fills STATE."""
+    # 1. The people targets: each cell's count on the year-s file times CBO's growth of the same people.
     keep = (df['billionaire'].to_numpy() != 1) if 'billionaire' in df else np.ones(len(df), bool)
     M = person_matrix(df)
     lev = w[keep] @ M[keep]
@@ -129,8 +146,8 @@ def step1(df, w, year, s):
         assert base > 0, f'{cell_label(k)}: the {s} file has {lev[k]:,.0f} people, CBO none'
         g = cbo_population(year, m, a) / base
         cells.append({'cell': cell_label(k), 'column': k, 'base': lev[k], 'growth': g, 'target': lev[k] * g})
-    # The dependent filers' six cells (age range by marital status), each grown with its population. The person counts
-    # do not see the dependent filers themselves.
+    # 2. The dependent filers' six cells (age range by marital status), each grown with its population. The people
+    #    counts do not include the dependent filers themselves.
     scaled, _ = PD.population_cells(df.assign(weight=w), year, from_year=s)
     scaled = np.asarray(scaled, float)
     rng, mar = df['age_range'].to_numpy(), df['married'].to_numpy()
@@ -142,6 +159,7 @@ def step1(df, w, year, s):
                 dep_cells.append({'cell': f'dependent filers {common.AGE_LABELS[r]}, {"married" if m else "not married"}',
                                   'column': -1, 'mask': c, 'base': w[c].sum(), 'growth': scaled[c].sum() / w[c].sum(),
                                   'target': scaled[c].sum()})
+    # 3. Solve for the weights that meet every count exactly, and check them.
     F = np.column_stack([M[keep][:, [c['column'] for c in cells]].astype(float)] +
                         [c['mask'][keep].astype(float) for c in dep_cells])
     T = np.array([c['target'] for c in cells] + [c['target'] for c in dep_cells])
@@ -165,7 +183,7 @@ def step1(df, w, year, s):
     common.say(f"step 1 (people by age and marital status, {m_} exact cells): {info['how']}; effective sample kept "
                f"{out['effective sample kept (%)']:.2f}%; units {out['units, 2023 file (millions)']:.2f} -> "
                f"{out['units after step 1 (millions)']:.2f} million")
-    # returns: the base file's share of each group's units that file
+    # 4. For the returns targets: the base file's share of each return group's units that file.
     grp = return_group(df)
     fil = df['filer'].to_numpy() == 1
     shares = {}
@@ -174,6 +192,7 @@ def step1(df, w, year, s):
         if w[c].sum() > 0:
             shares[int(g)] = {'units 2023': w[c].sum(), 'filers 2023': w[c & fil].sum(),
                               'units after step 1': w1[c].sum(), 'filers after step 1': w1[c & fil].sum()}
+    # 5. Keep the results for steps 2 and 3, with what the filing-season blend and the interest rule need.
     STATE.clear()
     STATE.update(year=int(year), base_year=int(s), record_id=df['record_id'].to_numpy(), keep=keep, w_base=w.copy(),
                  w1=w1, person_targets=table, step1=out, return_shares=shares, items={}, add_factors=[])
@@ -185,12 +204,13 @@ def step1(df, w, year, s):
     return w1, out
 
 
-# ---- step 2 ---------------------------------------------------------------------------------------------------
+# ---- Step 2: one growth factor for each dollar item ----
+
 @lru_cache(maxsize=None)
 def items_table():
-    """The items table (settings tilt.projection.items_table): one row per grown column with its series ('current',
-    'file:<csv>:<column>', 'same_as:<column>' or 'none'), its kind ('total' or 'per_unit'), whether its total is
-    targeted, and the relative error of that target."""
+    """The items table (settings tilt.projection.items_table), checked. One row per grown column, with its series
+    ('current', 'file:<csv>:<column>', 'same_as:<column>' or 'none'), its kind ('total' or 'per_unit'), whether its
+    total is targeted, and the relative error of that target."""
     p = _path(P['items_table'])
     t = pd.read_csv(p, dtype={'column': str, 'series': str, 'kind': str, 'note': str}, keep_default_na=False)
     assert list(t.columns) == ITEMS_COLUMNS, f'{p}: columns {list(t.columns)}, not {ITEMS_COLUMNS}'
@@ -209,9 +229,10 @@ def items_table():
 
 @lru_cache(maxsize=None)
 def add_factors_table():
-    """The add factors table (settings tilt.projection.add_factors_table): extra growth in percent a year on top of an
-    item's series, one row per item and range of years. Every column must be in the items table, no item's years covered
-    twice, and every non-zero percent must carry a note."""
+    """The add factors table (settings tilt.projection.add_factors_table), checked. An add factor is extra growth, in
+    percent a year, on top of an item's series, set by hand. The table has one row per item and range of years. Every
+    column must be in the items table, no year of an item may be covered twice, and every non-zero percent must have a
+    note."""
     p = _path(P['add_factors_table'])
     t = pd.read_csv(p, dtype={'column': str, 'note': str}, keep_default_na=False)
     assert list(t.columns) == ADD_COLUMNS, f'{p}: columns {list(t.columns)}, not {ADD_COLUMNS}'
@@ -236,10 +257,11 @@ def add_factors_table():
 
 def add_factor(col, s, t):
     """Column col's add factor from base year s to year t: the product of (1 + percent / 100) over the years s + 1 to
-    t covered by its rows of the add factors table (exactly 1 with none). Returns (factor, rows in force)."""
+    t that its rows of the add factors table cover (exactly 1 when there are none). Returns (factor, the rows in
+    force)."""
     tab = add_factors_table()
-    # a row covering years up to the start year s counts only its years after s: the start's file already carries the
-    # earlier years' add factors
+    # A row that covers years up to the start year s counts only its years after s. The start's file already carries
+    # the add factors of the earlier years.
     f, used = 1.0, []
     for r in tab[tab.column == col].itertuples():
         n = len(range(max(r.first_year, s + 1), min(r.last_year, t) + 1))
@@ -251,7 +273,8 @@ def add_factor(col, s, t):
 
 
 def series_growth(spec, s, t):
-    """A 'file:<csv>:<column>' series' growth from year s to year t (both in the file, positive; never extended)."""
+    """The growth of a 'file:<csv>:<column>' series from year s to year t. Both years must be in the file with positive
+    values; the series is never extended."""
     _, path, col = spec.split(':', 2)
     d = pd.read_csv(os.path.join(RESOURCES, path))
     assert 'year' in d and col in d, f'{path}: needs columns year and {col}'
@@ -262,11 +285,12 @@ def series_growth(spec, s, t):
 
 
 def step2_factor(col, x, fp_cur, fn_cur, series_cur, s, t):
-    """Step 2's factors (positive values, negative values) for column col, with amounts x on the s file. The growth is
-    the row's series, times the filing-season blend and the add factors where they apply. For kind 'total' the factor
-    also carries the base file's total over the total on the step 1 weights, so the item's total grows exactly at its
-    series and population growth is not counted twice. fp_cur, fn_cur, series_cur: the per-unit rule start.grow_dollars
-    uses for a 'current' row. Returns (fp, fn, description) and records the item in STATE['items']."""
+    """Step 2's factors for column col (for positive values and for negative values), with x the column's amounts on
+    the year-s file. The growth is the row's series, times the filing-season blend and the add factors where they
+    apply. For kind 'total' the factor also carries the base file's total over the total on the step 1 weights. The
+    item's total then grows exactly at its series, and population growth is not counted twice. fp_cur, fn_cur and
+    series_cur are the per-unit rule that start.grow_dollars uses for a 'current' row. Returns (fp, fn, description)
+    and records the item in STATE['items']."""
     tab = items_table()
     assert col in tab.index, f'{col}: grown by the projection start but not in the items table {_path(P["items_table"])}'
     row = tab.loc[col]
@@ -321,8 +345,8 @@ def same_as(col):
 
 
 def check_add_factors_applied(t):
-    """After step 2: every item with a non-zero add factor in force by year t was grown by the start (else the table
-    names a column the file does not carry, and its add factor would be silently lost)."""
+    """A check after step 2: every item with a non-zero add factor in force by year t was grown by the start.
+    Otherwise the table names a column the file does not have, and its add factor would be lost without notice."""
     tab = add_factors_table()
     live = tab[(tab.percent != 0) & (tab.first_year <= t)]
     lost = sorted(set(live.column) - set(STATE['items']))
@@ -330,19 +354,20 @@ def check_add_factors_applied(t):
 
 
 def same_as_add_factor(col, s, t):
-    """A same_as column's own add factor (on top of the other column's factors, which carry the other's add factors).
-    Returns the factor; records the rows in force."""
+    """A same_as column's own add factor, applied on top of the other column's factors (which already carry the other
+    column's add factors). Returns the factor and records the rows in force."""
     A, used = add_factor(col, s, t)
     STATE['add_factors'] += used
     return A
 
 
 def record_same_as(col, other, x, A=1.0):
-    """Records a same_as column: the other column's factors record by record, times the column's own add factor A."""
+    """Records a same_as column in STATE['items']: it takes the other column's factors record by record, times its own
+    add factor A."""
     r = dict(STATE['items'][other])
     keep, w0 = STATE['keep'], STATE['w_base']
-    # the other column's factors record by record: on this column's records that is a growth per record (kind
-    # per_unit), whatever the other column's kind
+    # On this column's records the other column's factors are a growth per record (kind per_unit), whatever the other
+    # column's kind.
     src = f"the factors of {other} record by record ({r['source'][:120]})"
     if A != 1.0:
         src += f'; times its own add factors {A:.5f}'
@@ -356,9 +381,9 @@ def record_same_as(col, other, x, A=1.0):
 
 
 def scf_factor(v):
-    """The factor for a balance-sheet item on the SCF's units, for scf_targets.projection_extension. Kind total: the
-    growth in the total over the growth of the file's units after step 1, as the SCF units grow with them; kind
-    per_unit: the step 2 factor itself."""
+    """The factor for a balance-sheet item on the SCF's units, for scf_targets.projection_extension. For kind total it
+    is the growth in the total over the growth of the file's units after step 1, because the SCF's units grow with
+    the file's. For kind per_unit it is the step 2 factor itself."""
     r = STATE['items'][v]
     if r['kind'] == 'total':
         return r['growth positive'] / unit_growth()
@@ -366,26 +391,32 @@ def scf_factor(v):
 
 
 def unit_growth():
+    """The growth in the file's number of units in step 1, Forbes list left out."""
     k = STATE['keep']
     return float(STATE['w1'][k].sum() / STATE['w_base'][k].sum())
 
 
-# ---- step 3: the targets ---------------------------------------------------------------------------------------
+# ---- Step 3: the targets ----
+
 def handles(v):
+    """Whether v is one of this module's target variables (its name starts with a PREFIX)."""
     return isinstance(v, str) and v.startswith(tuple(PREFIX.values()))
 
 
 def variable_def(v):
+    """The definition of one of this module's target variables, as target_list.variable_def returns it."""
     for kind, pre in PREFIX.items():
         if v.startswith(pre):
             return {'short': v[len(pre):], 'projection': kind, 'what': f'projection step 3, {kind}'}
     raise KeyError(v)
 
 
-_PERSONS = {}   # the person matrix of the frame last asked for (one people target per cell reads it)
+_PERSONS = {}   # the person matrix of the frame last asked for (each people target reads one of its columns)
 
 
 def record_value(df, v):
+    """Each record's value of one of this module's target variables: its people in one cell, 1 if it files in one
+    return group, its value of a filing-season item, or the positive or negative part of an item."""
     kind = variable_def(v)['projection']
     key = v[len(PREFIX[kind]):]
     if kind == 'persons':
@@ -402,12 +433,14 @@ def record_value(df, v):
 
 
 def _row(label, value, variable, source):
+    """A target row of an amount, for target_list."""
     return {'cell': label, 'statistic': 'amount', 'value': float(value), 'variable': variable, 'source': source,
             'cell_spec': {'parts': {}, 'filters': [], 'label': label, 'agi': None, 'line': None}}
 
 
 def _start():
-    """The start the tilt set (the frame, its weights, the records held fixed) and the Forbes list's records."""
+    """The start that the reweighting stored in STATE['start'] (the records and their weights) and a mask of the Forbes
+    list's records. Every list record must be held fixed."""
     assert STATE.get('start') is not None, 'projection targets need the start (tilt sets PS.STATE["start"])'
     df, w, fixed = STATE['start']
     lst = df['billionaire'].to_numpy() == 1 if 'billionaire' in df else np.zeros(len(df), bool)
@@ -416,14 +449,22 @@ def _start():
 
 
 def outside_rows(src, year):
-    """The rows of an outside source of this module (target_list.outside_rows)."""
+    """The target rows of one of this module's outside sources (called by target_list.outside_rows). Every target adds
+    the year's Forbes list's contribution to the value grown from the base file.
+
+    - 'projection persons': the people by marital status and age, from step 1.
+    - 'projection returns': the returns in each return group, at the base file's filing share times the group's units
+      after step 1.
+    - 'projection items': each targeted item's total after step 2, positive and negative values separately, where each
+      has enough records and dollars.
+    - 'projection filing season': the filing-season targets by AGI group (fs_rows)."""
     assert STATE.get('year') == int(year), f'{src}: step 1 was not run for {year}'
     df, w, lst = _start()
     out = []
     if src == 'projection persons':
         for r in STATE['person_targets'].itertuples(index=False):
             if r.column < 0:
-                continue   # the dependent filers' cells: covered by their returns groups (every dependent filer files)
+                continue   # the dependent filers' cells: their return groups cover them (every dependent filer files)
             v = f"{PREFIX['persons']}{int(r.column)}"
             lp = float((w[lst] * record_value(df, v)[lst]).sum())
             out.append(_row(r.cell, r.target + lp, v,
@@ -451,7 +492,7 @@ def outside_rows(src, year):
                 x = record_value(df, v)
                 val = float(w @ x)
                 lp = float((w[lst] * x[lst]).sum())
-                if r['kind'] == 'total':   # the start must sit on its series (step 2), the list apart
+                if r['kind'] == 'total':   # without the list, the start's total must equal its series' growth (step 2)
                     expect = abs(r[f'2023 total {nm}']) * r[f'growth {nm}']
                     assert abs((val - lp) / expect - 1) < 1e-6, \
                         f'{col} {nm}: the start {val - lp:,.0f} is not the 2023 total times its growth {expect:,.0f}'
@@ -466,7 +507,8 @@ def outside_rows(src, year):
 
 
 def write(folder):
-    """Writes the step 1, step 2, return group and add factor tables; returns the summary lines."""
+    """Writes the tables of step 1, step 2, the return groups and the add factors, and returns the lines for
+    summary.md."""
     STATE['person_targets'].to_csv(f'{folder}/projection_step1_cells.csv', index=False)
     items = pd.DataFrame(list(STATE['items'].values()))
     items.to_csv(f'{folder}/projection_step2_items.csv', index=False)
@@ -488,18 +530,19 @@ def write(folder):
     return lines + fs_write(folder) + ig_write(folder)
 
 
-# ---- the filing-season blend for the first projection year ---------------------------------------------------------
-# The first projection year's growth from the last final SOI year blends SOI's November filing-season tables with the
-# item's national series, by a trust weight per item. Step 2 gives each column one more national factor so that its
-# total grows at the blended rate; step 3 replaces each trusted item's national total with targets by AGI group. See
-# FEATURES.md, "The first projection year from SOI's November filing-season tables".
+# ---- The filing-season blend for the first projection year ----
+# The growth from the last year of final SOI tables to the first projection year blends two sources: SOI's November
+# filing-season tables and the item's national series. Each item has a trust weight on the November tables. Step 2
+# gives each column one more national factor, which makes its total grow at the blended rate. Step 3 replaces each
+# trusted item's national total with targets by AGI group. FEATURES.md, "The first projection year from SOI's November
+# filing-season tables", describes the rule.
 FS = P['filing_season']
-FS_LEVELS = {'full': 1.0, 'mostly trust': 2.0 / 3.0, 'mostly not trust': 1.0 / 3.0, 'none': 0.0}
-# the November tables' items; fs_columns gives the items-table columns each one grows
+FS_LEVELS = {'full': 1.0, 'mostly trust': 2.0 / 3.0, 'mostly not trust': 1.0 / 3.0, 'none': 0.0}   # trust weights
+# The items of the November tables. fs_columns gives the columns of the items table that each one grows.
 FS_ITEMS = ['returns', 'wages', 'txbl_int', 'dividends', 'div_pref', 'txbl_ira_dist', 'txbl_pens_dist',
             'capital_gains_line13', 'schedule_e', 'sole_prop', 'farm', 'ui']
-# AGI groups (lower edge inclusive, upper edge exclusive): the standard grid with no AGI and $1-10,000 merged and
-# $1 million and over at the top; Schedule E merges every group below $75,000
+# The AGI groups, lower edge included and upper edge not: the standard grid, with no AGI and $1-10,000 merged and
+# $1 million and over at the top. Schedule E merges every group below $75,000.
 FS_EDGES = [(-np.inf, 10000, 'under $10k'), (10000, 20000, '$10k-20k'), (20000, 30000, '$20k-30k'),
             (30000, 40000, '$30k-40k'), (40000, 50000, '$40k-50k'), (50000, 75000, '$50k-75k'),
             (75000, 100000, '$75k-100k'), (100000, 200000, '$100k-200k'), (200000, 500000, '$200k-500k'),
@@ -508,26 +551,30 @@ FS_EDGES_E = [(-np.inf, 75000, 'under $75k')] + FS_EDGES[6:]
 
 
 def fs_active(year, s=None):
-    """The blend applies to a year at or after the filing-season year whose start is the base-year file (s, else this
-    run's step 1 start). From the jump-off year on, the start is the jump-off year's file, which carries the blend."""
+    """Whether the blend applies: to a year at or after the filing-season year whose start is the base year's file (s,
+    or else this run's step 1 start). After the jump-off year the start is the jump-off year's file, which already
+    carries the blend."""
     s = STATE.get('base_year') if s is None else s
     return int(year) >= int(FS['year']) and s is not None and int(s) == int(FS['base_year'])
 
 
 def jump_off(year, s):
-    """The start year of a projection year whose targets.yaml says from_year s: the jump-off year, the last year with
-    IRS data (the November table included), for every year after it; s otherwise."""
+    """The start year of a projection year whose targets.yaml says from_year s. Every year after the jump-off year
+    starts from the jump-off year, the last year with IRS data (counting the November tables). Otherwise the start
+    year is s."""
     if int(s) == int(FS['base_year']) and int(year) > int(FS['year']):
         return int(FS['year'])
     return int(s)
 
 
 def fs_e_parts():
+    """The parts of Schedule E income, each with its sign."""
     from prep import build_table as BT
     return [(p, BT.PARTS[p][1]) for p in BT.E_PARTS]
 
 
 def fs_columns(item):
+    """The columns of the items table that a November item grows."""
     if item == 'schedule_e':
         return [p for p, _ in fs_e_parts()]
     return {'returns': [], 'dividends': ['div_ord'], 'capital_gains_line13': ['kg_st', 'kg_lt', 'kg_dist']}.get(item, [item])
@@ -535,7 +582,8 @@ def fs_columns(item):
 
 @lru_cache(maxsize=None)
 def fs_trust_table():
-    """The trust table (settings filing_season.trust_table): one row per November item with its level and reason."""
+    """The trust table (settings filing_season.trust_table), checked: one row per November item, with its trust level
+    and the reason for it."""
     p = _path(FS['trust_table'])
     t = pd.read_csv(p, keep_default_na=False)
     assert list(t.columns) == ['item', 'level', 'reason'], f'{p}: columns item, level, reason'
@@ -548,16 +596,18 @@ def fs_trust_table():
 
 
 def fs_trust():
-    """{item: weight}, the trust level's weight on the November tables."""
+    """Each item's trust weight on the November tables, as a dict."""
     return {item: FS_LEVELS[level] for item, level in fs_trust_table()['level'].items()}
 
 
 def fs_edges(item):
+    """The AGI groups of an item's targets."""
     return FS_EDGES_E if item == 'schedule_e' else FS_EDGES
 
 
 def fs_group_of_class(item, lo):
-    """The target group a class of the November tables (its lower edge; None for no AGI) falls in."""
+    """The target group in which a class of the November tables falls, given the class's lower edge (None for no
+    AGI)."""
     lo_ = -np.inf if (lo is None or (isinstance(lo, float) and np.isnan(lo))) else float(lo)
     hit = [lab for a, b, lab in fs_edges(item) if a <= lo_ < b]
     assert len(hit) == 1, (item, lo)
@@ -566,14 +616,15 @@ def fs_group_of_class(item, lo):
 
 @lru_cache(maxsize=None)
 def fs_tables():
-    """The November tables (settings filing_season.tables), the long layout."""
+    """The November tables (settings filing_season.tables), in the long layout."""
     t = pd.read_csv(_path(FS['tables']), keep_default_na=False)
     return t[t['layout'] == 'long']
 
 
 @lru_cache(maxsize=None)
 def fs_november(item, stat):
-    """{group: (level base_year, level year)} and 'all' of an item in the November tables (the long layout)."""
+    """An item's levels in the November tables of the base year and of the filing-season year, by target group and
+    for 'all', as a dict of group: [base-year level, year level]."""
     t = fs_tables()
     stat_ = 'returns' if stat in ('count', 'units') else 'amount'
     out = {}
@@ -589,12 +640,14 @@ def fs_november(item, stat):
 
 @lru_cache(maxsize=None)
 def fs_errors():
+    """The table of the November items' errors from the backtest (settings filing_season.errors_table)."""
     return pd.read_csv(_path(FS['errors_table']))
 
 
 def fs_error(item, stat, group):
-    """(kind, number): ('relative', the relative error, at least min_error) or ('dollars', a share of the item's
-    national total). A group with no backtest error stops the run."""
+    """The error of an item's target in one group, as (kind, number): ('relative', the relative error, at least
+    min_error) or ('dollars', a share of the item's national total). A group with no error from the backtest stops the
+    run."""
     e = fs_errors()
     s = e[(e['item'] == item) & (e.statistic == ('returns' if stat in ('count', 'units') else 'amount')) &
           (e['group'] == group)]
@@ -608,7 +661,7 @@ def fs_error(item, stat, group):
 
 
 def fs_value(df, item):
-    """A record's value of a filing-season item (in the frame's dollars)."""
+    """Each record's value of a filing-season item, in the frame's dollars."""
     if item == 'returns':
         return np.ones(len(df))
     if item == 'capital_gains_line13' and item not in df:
@@ -622,7 +675,8 @@ def fs_value(df, item):
 
 
 def fs_series_growth(col):
-    """The column's own series' growth from base_year to year, and its add factor over those years (must be 1)."""
+    """The growth of the column's own series from the base year to the filing-season year. Its add factor over those
+    years must be 1."""
     tab = items_table()
     assert col in tab.index and tab.loc[col, 'series'].startswith('file:'), f'{col}: a file series in the items table'
     s, t = int(FS['base_year']), int(FS['year'])
@@ -633,21 +687,22 @@ def fs_series_growth(col):
 
 
 def fs_base_total(x):
-    """The base_year file's national total of record values x (all units, Forbes list left out)."""
+    """The national total of the record values x on the base year's file (all units, Forbes list left out)."""
     k, w0 = STATE['keep'], STATE['w_base']
     return float(w0[k] @ x[k])
 
 
 def fs_blend(item):
-    """{'w', 'november', 'cbo', 'blend'}: the item's national growth from base_year to year in the November tables,
-    by CBO's series, and the blend."""
+    """The item's national growth from the base year to the filing-season year, as a dict: in the November tables
+    ('november'), by CBO's series ('cbo'), and blended with the trust weight w ('blend' = w x november + (1 - w) x
+    cbo)."""
     b = STATE['fs']['blend']
     if item not in b:
         w = fs_trust()[item]
         nov = fs_november(item, 'amount' if item != 'returns' else 'units')['all']
         N = nov[1] / nov[0]
         if item == 'returns':
-            C = N                                    # shares only: the CBO part leaves every group's share unchanged
+            C = N                                    # returns set shares only; the CBO part would not change them
         elif item == 'dividends':
             C = fs_series_growth('div_ord')          # both parts of dividends grow by CBO's qualified dividend series
             assert abs(C / fs_series_growth('div_pref') - 1) < 1e-12, 'dividends: the two parts have different series'
@@ -665,8 +720,8 @@ def fs_blend(item):
 
 
 def fs_column_factor(col, t):
-    """(factor, description) of the filing-season blend on column col in year t, or None when the blend is not in force
-    or the item has no trust."""
+    """The filing-season blend's factor on column col in year t, with a description, or None when the blend does not
+    apply or the item has no trust."""
     if not fs_active(t):
         return None
     cols = STATE['fs']['columns']
@@ -698,15 +753,26 @@ def fs_column_factor(col, t):
 
 
 def fs_replaced_columns(year):
-    """The columns whose national total target the group targets replace (in the filing-season year only)."""
+    """The columns whose national total target is replaced by targets by AGI group (in the filing-season year
+    only)."""
     if not (fs_active(year) and int(year) == int(FS['year'])):
         return set()
     return {c for item in FS_ITEMS if fs_trust()[item] > 0 for c in fs_columns(item)}
 
 
+def _fs_row(out, item, stat, lab, lo, hi, value, se, source):
+    """Adds to out the target row of one item and statistic in one AGI group, with its value, standard error and
+    source."""
+    v = f"{PREFIX['filing_season']}{item}"
+    out.append({'cell': lab, 'statistic': stat, 'value': float(value), 'variable': v, 'source': source,
+                'se': float(se), 'agi': (lo, hi),
+                'cell_spec': {'parts': {}, 'filters': [], 'label': lab, 'agi': None, 'line': None}})
+
+
 def fs_rows(year):
-    """The rows of outside source 'projection filing season': each trusted item's blended total by AGI group on filers
-    (and for full-trust items the number of returns with it); none outside the filing-season year."""
+    """The target rows of the outside source 'projection filing season', in the filing-season year only. For each
+    trusted item, its blended total by AGI group among filers, and for fully trusted items also the number of returns
+    with it."""
     if not (fs_active(year) and int(year) == int(FS['year'])):
         return []
     from shared import dollars as D
@@ -717,13 +783,8 @@ def fs_rows(year):
     a0, a1 = D.agi(b), D.agi(df)
     out, table = [], []
 
-    def row(item, stat, lab, lo, hi, value, se, source):
-        v = f"{PREFIX['filing_season']}{item}"
-        out.append({'cell': lab, 'statistic': stat, 'value': float(value), 'variable': v, 'source': source,
-                    'se': float(se), 'agi': (lo, hi),
-                    'cell_spec': {'parts': {}, 'filters': [], 'label': lab, 'agi': None, 'line': None}})
-
-    # the number of returns: shares across groups of the total the exact returns cells set
+    # 1. The number of returns. The exact targets of the return groups set its total. Here the blend only shares that
+    #    total across AGI groups.
     T = sum(d['filers 2023'] / d['units 2023'] * d['units after step 1'] for d in STATE['return_shares'].values())
     bl = fs_blend('returns')
     nov = fs_november('returns', 'units')
@@ -734,13 +795,15 @@ def fs_rows(year):
         lp = float(w[lst & fs_ & (a1 >= lo) & (a1 < hi)].sum())
         kind, e = fs_error('returns', 'units', lab)
         val = share * T + lp
-        row('returns', 'units', lab, lo, hi, val, e * val,
-            f"share {share:.5f} of the {T:,.0f} returns the exact returns cells set: the {FS['base_year']} file's "
-            f"{base[lab]:,.0f} returns in the group times the November growth {nov[lab][1] / nov[lab][0]:.5f}, as a "
-            f"share; plus the year's list {lp:,.0f}")
+        _fs_row(out, 'returns', 'units', lab, lo, hi, val, e * val,
+                f"share {share:.5f} of the {T:,.0f} returns the exact returns cells set: the {FS['base_year']} file's "
+                f"{base[lab]:,.0f} returns in the group times the November growth {nov[lab][1] / nov[lab][0]:.5f}, as a "
+                f"share; plus the year's list {lp:,.0f}")
         table.append({'item': 'returns', 'statistic': 'units', 'group': lab, 'base': base[lab],
                       'november growth': nov[lab][1] / nov[lab][0], 'growth': share * T / base[lab] if base[lab] else np.nan,
                       'value': val, 'se': e * val})
+    # 2. Each trusted item's amount, and for fully trusted items the count, in each AGI group: the base file's value
+    #    times the blended growth, plus the year's Forbes list.
     for item in FS_ITEMS:
         if item == 'returns' or fs_trust()[item] == 0:
             continue
@@ -761,11 +824,11 @@ def fs_rows(year):
                 val = base_g * g + lp
                 kind, e = fs_error(item, stat, lab)
                 se = e * nat if kind == 'dollars' else e * abs(val)
-                row(item, stat, lab, lo, hi, val, se,
-                    f"the {FS['base_year']} file's {base_g:,.0f} in the group (filers, Forbes list left out) times "
-                    f"{g:.5f} = {bl['w']:.3f} x November {ng:.5f} + {1 - bl['w']:.3f} x CBO's national "
-                    f"{bl['cbo'] if stat == 'amount' else 1.0:.5f}; plus the year's list {lp:,.0f}; error "
-                    f"{'%.4f of the national total' % e if kind == 'dollars' else '%.4f' % e}")
+                _fs_row(out, item, stat, lab, lo, hi, val, se,
+                        f"the {FS['base_year']} file's {base_g:,.0f} in the group (filers, Forbes list left out) times "
+                        f"{g:.5f} = {bl['w']:.3f} x November {ng:.5f} + {1 - bl['w']:.3f} x CBO's national "
+                        f"{bl['cbo'] if stat == 'amount' else 1.0:.5f}; plus the year's list {lp:,.0f}; error "
+                        f"{'%.4f of the national total' % e if kind == 'dollars' else '%.4f' % e}")
                 table.append({'item': item, 'statistic': stat, 'group': lab, 'base': base_g, 'november growth': ng,
                               'growth': g, 'value': val, 'se': se})
     STATE['fs']['targets'] = table
@@ -773,8 +836,9 @@ def fs_rows(year):
 
 
 def fs_write(folder):
-    """The filing-season lines of the summary, and projection_filing_season.csv (the blends) and
-    projection_filing_season_targets.csv (the group targets)."""
+    """Writes projection_filing_season.csv (the blends), projection_filing_season_columns.csv (the step 2 factors)
+    and projection_filing_season_targets.csv (the targets by AGI group), and returns the blend's lines for
+    summary.md."""
     if not fs_active(STATE.get('year', 0)):
         if int(STATE.get('base_year', 0)) == int(FS['year']):
             how = (f"the start is the jump-off year's file ({FS['year']}), which carries the blend; every item grows "
@@ -798,28 +862,29 @@ def fs_write(folder):
     return lines
 
 
-# ---- taxable interest and the rate-like part of non-qualified dividends --------------------------------------------
-# Taxable interest on returns behaves like short-term money: it tripled from 2022 to 2024 as short rates rose, so the
-# start file already carries the high rates. From the jump-off year's start on it grows with nominal GDP times the
-# 3-month Treasury bill rate. Non-qualified dividends are split on the start file into a stock-like part, which keeps
-# the column's series, and a rate-like part, which grows as taxable interest; the column grows by the share-weighted
-# blend. See FEATURES.md, "Taxable interest after the jump-off year".
+# ---- Taxable interest and the rate-like part of non-qualified dividends ----
+# Taxable interest on returns moves with short-term interest rates: it tripled from 2022 to 2024 as short rates rose,
+# and the start file already reflects the high rates. For a start at or after the jump-off year it grows with nominal
+# GDP times the 3-month Treasury bill rate. Non-qualified dividends are split on the start file into two parts. The
+# stock-like part keeps the column's series; the rate-like part grows as taxable interest does. The column grows by the
+# blend of the two, weighted by their shares. FEATURES.md, "Taxable interest after the jump-off year", describes the
+# rule.
 IG = P['interest_growth']
 IG_COLUMNS = ('txbl_int', 'div_ord')
 
 
 def ig_active(s):
-    """The rule applies to a year whose start year s is at or after from_year. from_year must be after the
-    filing-season base year, so the rule and the blend never apply to the same year."""
+    """Whether the rule applies: to a year whose start year s is at or after from_year. from_year must be after the
+    filing-season base year. The rule and the blend then never apply to the same year."""
     assert int(IG['from_year']) > int(FS['base_year']), \
         'tilt.projection.interest_growth.from_year must be after the filing-season base year'
     return int(s) >= int(IG['from_year'])
 
 
 def ig_split(df, w, s):
-    """The two parts of the start file's non-qualified dividends. The stock-like part is SOI's split-year non-qualified
-    dividends grown with qualified dividends to the start file's filers; the rate-like part is the rest. df, w: the
-    start file and its own weights, before step 1."""
+    """The two parts of the start file's non-qualified dividends. The stock-like part is SOI's non-qualified dividends
+    in the split year, grown with qualified dividends to the start file's filers. The rate-like part is the rest. df
+    and w are the start file and its own weights, before step 1."""
     y0 = int(IG['split_year'])
     assert y0 < int(s), f'interest_growth.split_year {y0} must be before the start year {s}'
     ordinary0, q0 = TG.soi_get(y0, 'ordinary dividends', 'amount'), TG.soi_get(y0, 'qualified dividends', 'amount')
@@ -845,7 +910,7 @@ def ig_split(df, w, s):
 
 
 def ig_growth(col, s, t):
-    """(growth from s to t, description) of a column under the rule."""
+    """A column's growth from year s to year t under the rule, and a description."""
     gr, what_r = series_growth(IG['rate_series'], s, t)
     if col == 'txbl_int':
         return gr, f'interest rule: {what_r} (nominal GDP times the 3-month bill rate)'
@@ -860,7 +925,7 @@ def ig_growth(col, s, t):
 
 
 def ig_write(folder):
-    """The summary lines of the rule, and projection_interest.csv."""
+    """Writes projection_interest.csv and returns the rule's lines for summary.md."""
     if not ig_active(STATE.get('base_year', 0)):
         how = f"not used for a start before {IG['from_year']}"
         return [f'Interest rule (settings tilt.projection.interest_growth): {how}.', '']

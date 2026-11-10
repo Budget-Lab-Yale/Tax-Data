@@ -1,8 +1,11 @@
-"""The growth of taxable interest after the jump-off year: column int_gdp_bill of
-resources/projection_series_b.csv (2023 = 1, through 2075), every other column kept byte for byte.
+"""Builds the growth of taxable interest in the projection years: the column int_gdp_bill of
+resources/projection_series_b.csv (2023 = 1, through 2075). Every other column of the file is kept byte for byte. It
+is run by hand.
 
-Interest on tax returns behaves like short-term money, so it grows as nominal GDP times the 3-month Treasury bill rate:
-CBO's February 2026 economic projections to settings tilt.projection.cbo_last_year, then the Macro-Projections series.
+Interest on tax returns behaves like interest on short-term money, so it grows as nominal GDP times the 3-month
+Treasury bill rate. The two come from CBO's February 2026 economic projections through settings
+tilt.projection.cbo_last_year, and from the Macro-Projections series after that.
+
     python -m resources_build.build_interest_series [<Macro-Projections folder>]
 """
 import os
@@ -21,12 +24,13 @@ FIRST, LAST = 2023, 2075
 COL = 'int_gdp_bill'
 SERIES = os.path.join(RES, 'projection_series_b.csv')
 
-# ---- 1. CBO's February 2026 economic projections, 2023 to cbo_last_year -------------------------------------------
+# ---- 1. CBO's February 2026 economic projections, 2023 to cbo_last_year ----
 e = pd.read_csv(os.path.join(RES, 'cbo_economic.csv'))
 e['year'] = e['date'].astype(int)
 
 
 def cbo(var):
+    """CBO's series var by year. Stops if a year from FIRST to cbo_last_year is missing or not positive."""
     s = e[e.variable == var].set_index('year')['value'].astype(float)
     missing = [y for y in range(FIRST, L + 1) if y not in s.index or not np.isfinite(s.loc[y]) or s.loc[y] <= 0]
     assert not missing, f'cbo_economic.csv: {var} missing or not positive in {missing}'
@@ -36,7 +40,7 @@ def cbo(var):
 gdp, bill = cbo('gdp'), cbo('treasury_bill_rate_3mo')
 level = {y: float(gdp.loc[y]) * float(bill.loc[y]) for y in range(FIRST, L + 1)}
 
-# ---- 2. Macro-Projections after cbo_last_year ------------------------------------------------------------------
+# ---- 2. Macro-Projections after cbo_last_year ----
 h, p = pd.read_csv(os.path.join(MP, 'historical.csv')), pd.read_csv(os.path.join(MP, 'projections.csv'))
 m = pd.concat([h, p[~p.year.isin(h.year)]]).set_index('year').sort_index()
 for c in ('gdp', 'tsy_3m'):
@@ -44,20 +48,21 @@ for c in ('gdp', 'tsy_3m'):
     assert list(v.index) == list(range(L, LAST + 1)) and np.isfinite(v).all() and (v > 0).all(), \
         f'{MP}: {c} missing or not positive in {L}-{LAST}'
 agg = lambda y: float(m.loc[y, 'gdp']) * float(m.loc[y, 'tsy_3m'])
-# the two sources at cbo_last_year (the long-run file is built from the same CBO vintage; only rounding differs)
+# The two sources must agree at cbo_last_year. The Macro-Projections file is built from the same CBO projections, so
+# only rounding may differ.
 gap_gdp = float(m.loc[L, 'gdp']) / float(gdp.loc[L]) - 1
 gap_bill = float(m.loc[L, 'tsy_3m']) - float(bill.loc[L])
 assert abs(gap_gdp) < 1e-4 and abs(gap_bill) < 0.01, f'{L}: Macro-Projections and CBO disagree (GDP {gap_gdp:.2e}, bill {gap_bill:.4f})'
 
 v = {y: level[y] / level[FIRST] for y in range(FIRST, L + 1)}
 for y in range(L + 1, LAST + 1):
-    v[y] = v[L] * (agg(y) / agg(L))     # as build_long_run.continued, kind total
+    v[y] = v[L] * (agg(y) / agg(L))     # as build_long_run.continued does for a series grown in total
 
-# ---- 3. the column into the series file, every other byte kept -------------------------------------------------
+# ---- 3. Write the column into the series file, keeping every other byte ----
 with open(SERIES) as f:
     lines = f.read().splitlines()
 head = lines[0].split(',')
-if head[-1] == COL:                       # a second run: drop the column written before
+if head[-1] == COL:                       # on a second run, drop the column written the first time
     lines = [ln.rsplit(',', 1)[0] for ln in lines]
     head = head[:-1]
 assert COL not in head, f'{SERIES}: {COL} is not the last column'

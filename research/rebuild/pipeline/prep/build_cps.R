@@ -1,12 +1,18 @@
 #-------------------------------------------------------------------------------
-# The CPS ASEC in tax units, one row per unit, for each tax year in settings
-# cps.years (the ASEC of March Y+1 asks about tax year Y). Units, separate
-# returns, filing status and filing chances come from the filing stage, run
-# first. A dependent's own return is dropped: the dependent counts in the
-# claiming unit's n_dep and their income goes nowhere. Person 1 is the man in a
-# mixed-sex couple, the older partner in a same-sex one. Writes
-# data/cps_units_<year>.csv.gz and per-person check files. Needs ipumsr
-# (REBUILD_R_LIBS). Run from the repository root.
+# The CPS ASEC in tax units: one row per unit, for each tax year in settings
+# cps.years. The ASEC of March of year Y+1 asks about tax year Y.
+#
+# The filing stage (filing.py and filing_requirement.R) runs first. It gives the
+# units, the couples split into separate returns, each return's filing status,
+# its filing requirement and its chance of filing. This script adds each unit's
+# income items, each adult's work, overtime pay and Social Security number
+# status, the dependents' ages, child care spending and the state. A
+# dependent's own return is dropped: the dependent counts in the claiming
+# unit's n_dep, and their income goes nowhere. In a couple of a man and a woman
+# person 1 is the man; in a same-sex couple person 1 is the older partner.
+# Writes data/cps_units_<year>.csv.gz and check files by person. Needs ipumsr
+# (REBUILD_R_LIBS). FEATURES.md, "The CPS", has the method. Run from the
+# repository root.
 #-------------------------------------------------------------------------------
 suppressPackageStartupMessages({
   library(data.table); library(ipumsr); library(stringr); library(dplyr); library(yaml); library(jsonlite)
@@ -23,9 +29,9 @@ stopifnot(all(YEARS %in% settings$cps$years))
 source('src/nonfilers/state_weights.R')     # raw_data_root(), age_band()
 source('src/nonfilers/asec_tax_units.R')    # read_asec(), the income cleaning, build_asec_unit_table()
 source('research/rebuild/pipeline/prep/tax_units_cbo.R')
-source('research/rebuild/pipeline/prep/overtime_cps.R')  # cps_overtime(): each person's overtime pay, Tedeschi's rules
-# the filing stage's folder inside the run's data folder (cps.step1_dir) and the folder of its returns inside it
-# (cps.step1_out)
+source('research/rebuild/pipeline/prep/overtime_cps.R')  # cps_overtime(): each person's overtime pay, by Tedeschi's rules
+# The filing stage's folder inside the run's data folder (settings cps.step1_dir), and the folder of its returns
+# inside that (cps.step1_out)
 if (is.null(settings$cps$step1_dir) || is.null(settings$cps$step1_out))
   stop('settings cps.step1_dir and cps.step1_out are required')
 STEP1 = file.path(OUT, settings$cps$step1_dir)
@@ -33,9 +39,15 @@ STEP1_OUT = settings$cps$step1_out
 cat(sprintf('tax units: the filing stage\'s CBO-rule units and calibrated chances (%s, %s)\n', STEP1, STEP1_OUT))
 step1_units_path = function(yr) file.path(STEP1, STEP1_OUT, sprintf('units_%d.csv.gz', yr))
 
-# The filing stage's returns for one year, matched to the units cbo_tax_units() built: each return's filing status,
-# calibrated chance and statutory requirement. A couple split into separate returns becomes two units, person 1's
-# keeping the dependents. Every household unit must match one return and the reverse, or the build stops.
+#-------------------------------------------------------------------------------
+# The filing stage's returns
+#-------------------------------------------------------------------------------
+
+# The filing stage's returns for one year, matched to the units that
+# cbo_tax_units() built. Each unit takes its return's filing status, filing
+# chance and filing requirement. A couple split into separate returns becomes
+# two units, and person 1's keeps the dependents. Every household unit must
+# match one return and every return one unit, or the build stops.
 step1_returns = function(built, yr) {
   su = fread(step1_units_path(yr))
   need = c('hh', 'head_pn', 'couple_uid', 'person', 'filing_status', 'p_file_cal', 'must_file', 'n24', 'n_dep_eitc',
@@ -70,7 +82,7 @@ step1_returns = function(built, yr) {
   units[su, on = 'unit_id', `:=`(filing_status = i.filing_status, p_file_cal = i.p_file_cal,
                                  must_file = as.logical(i.must_file), n24_step1 = i.n24, n_eitc_step1 = i.n_dep_eitc,
                                  eitc_eligible = as.logical(i.eitc_eligible))]
-  units[unit_type == 'dependent', `:=`(p_file_cal = NA_real_, must_file = NA)]   # scoring rows, dropped below
+  units[unit_type == 'dependent', `:=`(p_file_cal = NA_real_, must_file = NA)]   # dependents' rows, dropped below
   cat(sprintf('  the filing stage\'s calibrated chances: filers %.2f m of %.2f m household units\n',
               units[unit_type == 'nondependent', sum(weight * p_file_cal)] / 1e6,
               units[unit_type == 'nondependent', sum(weight)] / 1e6))
@@ -78,17 +90,24 @@ step1_returns = function(built, yr) {
 }
 POOL_FILE = settings$paths$raw$nonfiler_pool   # the old non-filer pool, for one comparison line in the summary
 
+# Prints the number of missing values in each column that has any.
 report_na = function(df, label) {
   na = colSums(is.na(df))
   na = na[na > 0]
   if (length(na) == 0) cat(sprintf('  %s: no NA in any column\n', label))
   else { cat(sprintf('  %s: NA counts\n', label)); print(na) }
 }
-bn = function(w, x) sum(w * x) / 1e9
+bn = function(w, x) sum(w * x) / 1e9    # a weighted total in billions
 
-# Survivor and disability benefits by source (the ASEC's codes 1-10). Class "pension": a pension or annuity on the
-# return's pension lines (Form 1099-R); class "other": the rest. "MIXED" marks a source whose tax treatment is split,
-# put in the closer class. Sources: IRS Publications 525, 575, 915, 721, 559 and 907.
+#-------------------------------------------------------------------------------
+# Survivor and disability benefits: pensions on the return, and the rest
+#-------------------------------------------------------------------------------
+
+# Survivor and disability benefits by source (the ASEC's codes 1-10). A source in
+# class "pension" is a pension or annuity reported on the return's pension lines
+# (Form 1099-R). A source in class "other" is anything else. "MIXED" marks a
+# source whose tax treatment is split; it is put in the closer class. The
+# reasons cite IRS Publications 525, 575, 915, 721, 559 and 907.
 SURVDIS_SOURCES = rbind(
   data.table(benefit = 'survivor', code = 1:10, label = c(
     'Company or union survivor pension', 'Federal government pension', 'US military retirement survivor pension',
@@ -127,13 +146,22 @@ SURVDIS_SOURCES = rbind(
 stopifnot(all(SURVDIS_SOURCES$class %in% c('pension', 'other')))
 SURVDIS_ITEMS = c('SRCSURV1', 'SRCSURV2', 'INCSURV1', 'INCSURV2', 'SRCDISA1', 'SRCDISA2', 'INCDISA1', 'INCDISA2')
 
-# Splits each person's survivor and disability benefits by the class of their source into survdis_pension and
-# survdis_other (summing to INCSURV + INCDISAB), and returns a table by source of people and dollars, with the
-# dollars of people under 62 as a rough guide to disability pensions.
+# Whether each source code of benefit b ('survivor' or 'disability') is in the
+# pension class of SURVDIS_SOURCES.
+is_pension_source = function(b, code) {
+  s = SURVDIS_SOURCES[benefit == b]
+  k = s$class[match(code, s$code)]
+  !is.na(k) & k == 'pension'   # code 0 (not in universe; no amount, checked above) is not a pension
+}
+
+# Splits each person's survivor and disability benefits by the class of their
+# source into survdis_pension and survdis_other, which sum to INCSURV + INCDISAB.
+# Returns a table by source of people and dollars. The dollars of people under
+# 62 are included as a rough guide to disability pensions.
 split_survivor_disability = function(x, ddi, yr) {
+  # 1. Clean the amounts, and check that the DDI's labels for the source codes are the ones classified above.
   stopifnot(!anyNA(x[, ..SURVDIS_ITEMS]))
   for (v in c('INCSURV1', 'INCSURV2', 'INCDISA1', 'INCDISA2')) set(x, j = v, value = clean_asec_income(x, ddi, v))
-  # the DDI's labels must be the ones classified above
   for (b in c('survivor', 'disability')) {
     for (v in if (b == 'survivor') c('SRCSURV1', 'SRCSURV2') else c('SRCDISA1', 'SRCDISA2')) {
       vl = ipumsr::ipums_val_labels(ddi, tidyselect::all_of(v))
@@ -144,9 +172,10 @@ split_survivor_disability = function(x, ddi, yr) {
       stopifnot(all(x[[v]] %in% 0:10))
     }
   }
-  # The two sources add to the total for all but at most one person a year, presumably because disclosure
-  # protection perturbs the total and the sources separately. There the total is kept and shared between the sources
-  # in proportion to their amounts. More than 5 such people in a year, or a total with no source amount, stops.
+  # 2. The two sources' amounts add to the total for all but at most one person a year. The likely cause is that
+  #    disclosure protection perturbs the total and the sources separately. There the total is kept and divided
+  #    between the sources in proportion to their amounts. More than 5 such people in a year, or a total with no
+  #    source amount, stops the run.
   for (b in c('survivor', 'disability')) {
     tot = if (b == 'survivor') 'INCSURV' else 'INCDISAB'
     a1 = if (b == 'survivor') 'INCSURV1' else 'INCDISA1'
@@ -168,16 +197,14 @@ split_survivor_disability = function(x, ddi, yr) {
   no_src = x[(INCSURV1 != 0 & SRCSURV1 == 0) | (INCSURV2 != 0 & SRCSURV2 == 0) |
              (INCDISA1 != 0 & SRCDISA1 == 0) | (INCDISA2 != 0 & SRCDISA2 == 0), .N]
   if (no_src > 0) stop(sprintf('%d: %d people have a survivor or disability amount with no source', yr, no_src))
-  is_p = function(b, code) {
-    s = SURVDIS_SOURCES[benefit == b]
-    k = s$class[match(code, s$code)]
-    !is.na(k) & k == 'pension'   # code 0 (not in universe; no amount, checked above) is not a pension
-  }
-  x[, survdis_pension := INCSURV1 * is_p('survivor', SRCSURV1) + INCSURV2 * is_p('survivor', SRCSURV2) +
-                         INCDISA1 * is_p('disability', SRCDISA1) + INCDISA2 * is_p('disability', SRCDISA2)]
+  # 3. Split each person's benefits into the pension class and the rest.
+  x[, survdis_pension := INCSURV1 * is_pension_source('survivor', SRCSURV1) +
+                         INCSURV2 * is_pension_source('survivor', SRCSURV2) +
+                         INCDISA1 * is_pension_source('disability', SRCDISA1) +
+                         INCDISA2 * is_pension_source('disability', SRCDISA2)]
   x[, survdis_other := (INCSURV + INCDISAB) - survdis_pension]
   stopifnot(!anyNA(x$survdis_pension), all(x$survdis_pension + x$survdis_other == x$INCSURV + x$INCDISAB))
-  # the table: one row per person and source with an amount (a person naming one source twice counts once in it)
+  # 4. The table: one row per person and source with an amount. A person who names one source twice counts once.
   x[, pid_ := .I]
   long = rbind(
     x[INCSURV1 != 0, .(pid_, w = ASECWT, age = AGE, benefit = 'survivor', code = SRCSURV1, amt = INCSURV1)],
@@ -189,7 +216,7 @@ split_survivor_disability = function(x, ddi, yr) {
   tab = long[, .(records = .N, people_m = sum(w) / 1e6, billions = sum(w * amt) / 1e9,
                  billions_age_under_62 = sum((w * amt)[age < 62]) / 1e9), by = .(benefit, code)]
   tab = merge(SURVDIS_SOURCES, tab, by = c('benefit', 'code'), all.x = TRUE)
-  # a source nobody reports this year: zero people and dollars (the universe is everyone in the frame)
+  # A source nobody reports this year has zero people and dollars (the universe is everyone in the frame).
   for (v in c('records', 'people_m', 'billions', 'billions_age_under_62')) set(tab, which(is.na(tab[[v]])), v, 0)
   tab[, benefit := factor(benefit, c('survivor', 'disability'))]
   setorder(tab, benefit, code)
@@ -198,16 +225,25 @@ split_survivor_disability = function(x, ddi, yr) {
 }
 sources_rows = list()
 
+# The raw ASEC columns used, checked for missing values
 RAW_USED = c('SERIAL', 'PERNUM', 'AGE', 'SEX', 'RELATE', 'MARST', 'SPLOC', 'MOMLOC', 'POPLOC', 'FTYPE', 'FAMID',
              'FAMREL', 'SCHLCOLL', 'ASECWT', 'GQ', 'EDUC', 'RACE', 'HISPAN', 'HIMCAIDLY', 'FOODSTAMP', 'INCWELFR',
              'INCTOT', 'INCSS', ASEC_GROSS_INCOME_ITEMS, 'WKSWORK1', 'UHRSWORKLY', 'SPMFAMUNIT', 'SPMCHXPNS',
              'SPMWT', 'FILESTAT', 'CITIZEN', 'INCSSI', 'HIMCARELY', 'HICHAMP', 'VETSTAT', 'CLASSWKR', 'PUBHOUS', 'STATEFIP')
 
-# Social Security number status: 1 a citizen (CITIZEN 1-4); 2 a noncitizen with a sign of lawful status; 3 a
-# noncitizen without one, taken to lack a number. An adult's signs: Social Security or SSI, Medicare, military health
-# cover, veteran status, a government job, unemployment insurance, public housing, Medicaid, or marriage to a citizen
-# (Borjas's edit). A dependent's: its own Social Security, SSI, Medicare or military cover (children's Medicaid does
-# not need lawful status in several states), or a parent in the unit who is a citizen or has a sign.
+#-------------------------------------------------------------------------------
+# Social Security number status
+#-------------------------------------------------------------------------------
+
+# Each person's Social Security number status: 1 a citizen (CITIZEN 1-4); 2 a
+# noncitizen with a sign of lawful status; 3 a noncitizen without one, who is
+# taken to have no number. An adult's signs are Social Security or SSI,
+# Medicare, military health cover, veteran status, a government job,
+# unemployment insurance, public housing, Medicaid, or marriage to a citizen
+# (Borjas's edit). A dependent's signs are their own Social Security, SSI,
+# Medicare or military cover, or a parent in the unit who is a citizen or has a
+# sign. Children's Medicaid is not a sign: several states give it to children
+# without lawful status.
 SSN_STATUS_ITEMS = c('CITIZEN', 'INCSS', 'INCSSI', 'INCUNEMP', 'HIMCARELY', 'HICHAMP', 'HIMCAIDLY', 'VETSTAT',
                      'CLASSWKR', 'PUBHOUS')
 ssn_status = function(p) {
@@ -215,8 +251,8 @@ ssn_status = function(p) {
             all(p$CITIZEN %in% 1:5), all(p$HIMCARELY %in% 0:2), all(p$HICHAMP %in% c(1:2, 9)),
             all(p$HIMCAIDLY %in% c(1:2, 9)), all(p$VETSTAT %in% c(0:2, 9)), all(p$PUBHOUS %in% 0:2),
             all(p$role %in% c('primary', 'spouse', 'dependent')))
-  # the codes as the DDIs label them (ASECs 2016-2024): 2 yes, 1 no, and not in universe 0 (HIMCARELY, PUBHOUS,
-  # VETSTAT) or 9 (HICHAMP, HIMCAIDLY; VETSTAT 9 is unknown). Only "yes" counts as a sign; the rest are no sign.
+  # The codes as the DDIs label them (ASECs 2016-2024): 2 yes, 1 no, and "not in universe" 0 (HIMCARELY, PUBHOUS,
+  # VETSTAT) or 9 (HICHAMP, HIMCAIDLY; VETSTAT 9 means unknown). Only "yes" counts as a sign.
   cat(sprintf('  status items not in universe or unknown (people): HICHAMP %d, HIMCAIDLY %d, HIMCARELY %d, VETSTAT 9 %d, PUBHOUS %d\n',
               sum(p$HICHAMP == 9), sum(p$HIMCAIDLY == 9), sum(p$HIMCARELY == 0), sum(p$VETSTAT == 9), sum(p$PUBHOUS == 0)))
   s = p[, .(SERIAL, PERNUM, unit_id, role, AGE, ASECWT, CITIZEN, INCSS, INCSSI, INCUNEMP, HIMCARELY, HICHAMP,
@@ -226,7 +262,8 @@ ssn_status = function(p) {
             adult_sign = INCSS > 0 | INCSSI > 0 | HIMCARELY == 2L | HICHAMP == 2L | VETSTAT == 2L |
               CLASSWKR %in% 24:28 | INCUNEMP > 0 | PUBHOUS == 2L)]
   s[, adult := role != 'dependent']   # the unit's primary filer and spouse
-  # the adults: a citizen; a noncitizen with an own sign or Medicaid; a noncitizen married to a citizen
+  # An adult has lawful status as a citizen, as a noncitizen with a sign of their own or Medicaid, or as a
+  # noncitizen married to a citizen.
   s[, n_cit_adults := sum(citizen & adult), by = unit_id]
   s[, other_adult_citizen := adult & (n_cit_adults - (citizen & adult)) > 0]
   s[, lawful_adult := adult & (citizen | (noncit & (adult_sign | medicaid)) | (noncit & other_adult_citizen))]
@@ -240,7 +277,11 @@ ssn_status = function(p) {
 }
 summary_rows = list()
 
+#-------------------------------------------------------------------------------
+# Each year
+#-------------------------------------------------------------------------------
 for (yr in YEARS) {
+  # 1. Read the ASEC and check the raw columns used.
   cat(sprintf('\n=== tax year %d (ASEC %d)\n', yr, yr + 1))
   if (!file.exists(step1_units_path(yr)))
     stop(sprintf('the filing stage has no returns with calibrated filing chances for %d (%s)', yr, step1_units_path(yr)))
@@ -253,7 +294,8 @@ for (yr in YEARS) {
                  yr, yr + 1, paste(miss, collapse = ', ')))
   report_na(x[, c(RAW_USED, ret_cols, SURVDIS_ITEMS), with = FALSE], 'raw ASEC columns used')
   cat(sprintf('  %d person records, %d households\n', nrow(x), uniqueN(x$SERIAL)))
-  # Overtime pay per person (overtime_cps.R), from the extract with the earnings questions; NA where not asked
+  # 2. Each person's overtime pay (overtime_cps.R), from the extract with the earnings questions. It is NA where
+  #    not asked. Write the person file of overtime.
   otp = cps_overtime(yr, x[, .(SERIAL, PERNUM)])
   ot_out = otp[, .(SERIAL, PERNUM, MISH, EARNWT, asked, basic_pay, pay_missing, ELIGORG, EMPSTAT, CLASSWKR, OCC2010, IND,
                   hourly, weekpay, wage, usual, lastwk, finalhours, inelig, exempt, eap_code, eap_prob, passes_duties,
@@ -266,30 +308,32 @@ for (yr in YEARS) {
   cat('  named industry codes, people with the code (a zero would mean the code is not in this year\'s scheme):\n')
   print(otp[IND %in% OT_IND_NAMED, .N, by = IND][order(IND)][, paste(IND, N, sep = ':')], quote = FALSE)
 
-  # income concepts, cleaned by the production pipeline's ASEC functions (src/nonfilers/asec_tax_units.R)
+  # 3. The income items, cleaned by production's ASEC functions (src/nonfilers/asec_tax_units.R). Capital gains are
+  #    asked from tax year 2018 only (the redesigned survey); in earlier years they are missing.
   x[, INCSS := clean_asec_income(x, ddi, 'INCSS')]
-  x[, INCSSI := clean_asec_income(x, ddi, 'INCSSI')]   # for the Social Security number status only (ssn_status)
+  x[, INCSSI := clean_asec_income(x, ddi, 'INCSSI')]   # used only for the Social Security number status
   x = add_asec_income_concepts(x, ddi)
-  # capital gains: asked from tax year 2018 only (the redesigned survey); earlier years do not have the item
   if (yr >= 2018) {
     stopifnot('INCCAPG' %in% names(x))
     x[, capital_gains := clean_asec_income(x, ddi, 'INCCAPG')]
   } else {
     if ('INCCAPG' %in% names(x)) cat('  INCCAPG is in this year\'s extract but the survey did not ask it: not used\n')
-    x[, capital_gains := NA_real_]   # not asked before tax year 2018: missing
+    x[, capital_gains := NA_real_]
   }
-  # Work: weeks 0-52 (0 did not work); usual hours, 999 not in universe (did not work) -> 0
+  # 4. Work: weeks worked, 0 to 52 (0 means the person did not work), and usual weekly hours. Hours of 999 mean not
+  #    in universe (did not work) and are read as 0.
   stopifnot(all(x$WKSWORK1 >= 0 & x$WKSWORK1 <= 52), all(x$UHRSWORKLY %in% c(0:99, 999)))
   cat(sprintf('  usual hours not in universe (999) but weeks worked > 0: %d people; weeks 0 but hours given: %d\n',
               sum(x$UHRSWORKLY == 999 & x$WKSWORK1 > 0), sum(x$UHRSWORKLY != 999 & x$WKSWORK1 == 0)))
   x[, usual_hours := fifelse(UHRSWORKLY == 999, 0, as.numeric(UHRSWORKLY))]
 
+  # 5. Leave out people in group quarters.
   gq_w = x[GQ == 2, sum(ASECWT)]
   x = x[GQ != 2]
   cat(sprintf('  frame: %.2f m people in households; %.2f m in group quarters left out (as in the pool)\n',
               x[, sum(ASECWT)] / 1e6, gq_w / 1e6))
 
-  # Survivor and disability benefits split by source into pensions on the return and the rest (SURVDIS_SOURCES)
+  # 6. Split survivor and disability benefits by source into pensions on the return and the rest (SURVDIS_SOURCES).
   sv = split_survivor_disability(x, ddi, yr)
   cat('  survivor and disability benefits by source, people in households (a person counts once per source; dollars as reported):\n')
   print(sv[, .(benefit, code, label = substr(label, 1, 45), class, records, people_m = round(people_m, 3),
@@ -299,19 +343,17 @@ for (yr in YEARS) {
               bn(x$ASECWT, x$survdis_pension + x$survdis_other), bn(x$ASECWT, x$INCSURV + x$INCDISAB)))
   sources_rows[[as.character(yr)]] = sv
 
-  #-----------------------------------------------------------------------------
-  # Units, filing status and filing chances, from the filing stage
-  #-----------------------------------------------------------------------------
+  # 7. The units, their filing status and their filing chances, from the filing stage. Each person's Social
+  #    Security number status is set before the filing stage's separate returns split the couples. Write the
+  #    person file of the status, its items, and the filing chance of the person's return.
   built = cbo_tax_units(x, yr, file.path(STEP1, 'units',
                                          sprintf('roster_%d_cbo_nogq.csv.gz', yr)))
-  # each person's Social Security number status, set before the filing stage's separate returns split couples
   ssn = ssn_status(built$persons)
   built = step1_returns(built, yr)
   p = built$persons
   u = built$units
   p[ssn, on = c('SERIAL', 'PERNUM'), ssn_status := i.ssn_status]
   stopifnot(!anyNA(p$ssn_status), nrow(ssn) == nrow(p))
-  # the per-person file for the checks: the status, its items, and the filing chance of the return the person is on
   ret = p[, .(SERIAL, PERNUM, return_id = unit_id, return_role = role)]
   ssn_out = merge(ssn, ret, by = c('SERIAL', 'PERNUM'), all.x = TRUE)
   ssn_out[u[unit_type == 'nondependent'], on = c(return_id = 'unit_id'), p_file := i.p_file_cal]
@@ -325,15 +367,14 @@ for (yr in YEARS) {
               sw(ssn_out$role == 'dependent' & ssn_out$AGE < 17 & ssn_out$ssn_status == 2),
               sw(ssn_out$role == 'dependent' & ssn_out$AGE < 17 & ssn_out$ssn_status == 3)))
 
-  #-----------------------------------------------------------------------------
-  # Persons 1 and 2 of each unit
-  #-----------------------------------------------------------------------------
+  # 8. Persons 1 and 2 of each unit. Dependents' own returns are dropped. In a couple of a man and a woman person 1
+  #    is the man; in a same-sex couple, the older partner; on a tie, the builder's head. A unit's overtime is
+  #    missing when either adult's is (not asked, or pay missing).
   units = u[unit_type == 'nondependent']
   dep_units = u[unit_type == 'dependent']
   cat(sprintf('  units: %d (%.2f m weighted); dependent scoring units dropped: %d (%.2f m weighted, own wages $%.1f bn)\n',
               nrow(units), sum(units$weight) / 1e6, nrow(dep_units), sum(dep_units$weight) / 1e6,
               bn(dep_units$weight, dep_units$INCWAGE)))
-
   p[otp, on = c('SERIAL', 'PERNUM'), `:=`(ot = i.ot, ot_asked = i.asked)]
   stopifnot(!anyNA(p$ot_asked))
   hs = p[role %in% c('primary', 'spouse'),
@@ -350,7 +391,6 @@ for (yr in YEARS) {
   cat(sprintf('  couples: %d mixed-sex, %d same-sex; builder\'s head is not person 1 in %d couples\n',
               hs[pos == 1 & n_adult == 2 & mixed, .N], hs[pos == 1 & n_adult == 2 & !mixed, .N],
               hs[pos == 1 & n_adult == 2 & role != 'primary', .N]))
-  # a unit's overtime is missing when either adult's is (not asked, or pay missing)
   hs[, ot_unit_na := anyNA(ot), by = unit_id]
   ot_asked_units = as.integer(unique(hs[ot_asked == TRUE, unit_id]))
   p1 = hs[pos == 1, .(unit_id, age1 = AGE, sex1 = SEX, wages1 = INCWAGE, se1 = se, weeks_worked1 = weeks,
@@ -359,12 +399,11 @@ for (yr in YEARS) {
   p2 = hs[pos == 2, .(unit_id, age2 = AGE, sex2 = SEX, wages2 = INCWAGE, se2 = se, weeks_worked2 = weeks,
                       usual_hours2 = hours, ot2 = fifelse(ot_unit_na, NA_real_, ot), ssn_status2 = ssn_status)]
 
-  #-----------------------------------------------------------------------------
-  # Dependents
-  #-----------------------------------------------------------------------------
+  # 9. The dependents: their number, the numbers under 13 and under 6, child credit children (qualifying children
+  #    under 17), EITC children (qualifying children, tax_units.py's rule), and the ages and Social Security number
+  #    status of the three youngest.
   deps = p[role == 'dependent'][order(unit_id, AGE, PERNUM)]
   stopifnot('is_qc' %in% names(deps), !anyNA(deps$is_qc))
-  # child credit children: qualifying children under 17; EITC children: qualifying children (tax_units.py's rule)
   dtab = deps[, .(n_dep_raw = .N, n13 = sum(AGE < 13), n6 = sum(AGE < 6),
                   n_ctc_raw = sum(is_qc & AGE < 17), n_eitc_raw = sum(is_qc),
                   dep_age1 = as.numeric(AGE[1]), dep_age2 = if (.N >= 2) as.numeric(AGE[2]) else -1,
@@ -374,9 +413,9 @@ for (yr in YEARS) {
   cat(sprintf('  dependents: %.2f m weighted (%.2f m aged 18+); units with more than 3: %d\n',
               sum(deps$ASECWT) / 1e6, sum(deps$ASECWT[deps$AGE >= 18]) / 1e6, sum(dtab$n_dep_raw > 3)))
 
-  #-----------------------------------------------------------------------------
-  # Child care: the SPM unit's expenses to the units that claim its children
-  #-----------------------------------------------------------------------------
+  # 10. Child care. The SPM unit's child care spending goes to the units that claim its children under 18, in
+  #     proportion to the number of children each claims. An SPM unit with spending but no such children gives it
+  #     to its reference person's unit.
   spm = p[, .(chx = SPMCHXPNS[1], n_val = uniqueN(SPMCHXPNS), spmwt = SPMWT[1],
               ref_pernum = if (any(RELATE == RELATE_HEAD)) PERNUM[RELATE == RELATE_HEAD][1] else min(PERNUM),
               SERIAL = SERIAL[1], n_serial = uniqueN(SERIAL)), by = SPMFAMUNIT]
@@ -397,10 +436,9 @@ for (yr in YEARS) {
   cc = alloc[, .(care_exp = sum(care_exp)), by = unit_id]
   stopifnot(all(cc$unit_id %in% units$unit_id))
 
-  #-----------------------------------------------------------------------------
-  # Assemble
-  #-----------------------------------------------------------------------------
-  # EITC eligibility under the tax year's law, from the filing stage (filing.py's eitc_eligible)
+  # 11. Assemble one row per unit: the unit's items from the filing stage and the unit table (EITC eligibility under
+  #     the tax year's law is filing.py's eitc_eligible), the head's and spouse's other items, persons 1 and 2, the
+  #     dependents and child care.
   stopifnot(!anyNA(units$eitc_eligible))
   units[, eitc_ok := as.integer(eitc_eligible)]
   out = units[, .(unit_id, SERIAL, weight, filing_status, must_file, p_file = p_file_cal, eitc_ok,
@@ -423,7 +461,8 @@ for (yr in YEARS) {
   married = out$filing_status == 'joint'
   stopifnot(all(is.na(out$age2) == !married), all(is.na(out$n_dep_raw) == (out$unit_id %in% dtab$unit_id == FALSE)))
   out[, married := as.integer(filing_status == 'joint')]
-  # not in universe: no spouse (person 2 zero, age -1, sex 0); no dependents (0, ages -1); no child care (0)
+  # Where an item does not apply: a unit with no spouse has person 2's amounts 0, age -1 and sex 0; a unit with no
+  # dependents has counts 0 and ages -1; a unit given no child care has 0.
   out[married == 0, `:=`(age2 = -1, sex2 = 0, wages2 = 0, se2 = 0, weeks_worked2 = 0, usual_hours2 = 0,
                          ot2 = fifelse(ot_unit_na, NA_real_, 0), ssn_status2 = 0L)]
   out[is.na(n_dep_raw), `:=`(n_dep_raw = 0L, n13 = 0L, n6 = 0L, n_ctc_raw = 0L, n_eitc_raw = 0L,
@@ -432,16 +471,18 @@ for (yr in YEARS) {
   stopifnot(all(out$filing_status %in% c('single', 'joint', 'separate', 'hoh')))
   out[is.na(care_exp), care_exp := 0]
 
-  # split sums: exact
+  # The split sums must be exact: each pair of person amounts adds to the unit's amount.
   stopifnot(identical(out$wages1 + out$wages2, out$wages), identical(out$se1 + out$se2, out$sch_cf_income),
             identical(out$survdis_pension + out$survdis_other, out$survivor_disability))
 
-  # the unit's state: its household's (STATEFIP). A household has one state.
+  # The unit's state is its household's (STATEFIP). A household has one state.
   hh_state = p[, .(statefip = STATEFIP[1], n_states = uniqueN(STATEFIP)), by = SERIAL]
   stopifnot(all(hh_state$n_states == 1), !anyNA(hh_state$statefip))
   out[hh_state, on = 'SERIAL', statefip := i.statefip]
   stopifnot(!anyNA(out$statefip))
 
+  # 12. The output columns. Each unit's filer flag is a seeded draw against its filing chance. Counts are capped
+  #     at 3, as on the PUF.
   setorder(out, unit_id)
   stopifnot(!anyDuplicated(out$unit_id), all(out$unit_id == round(out$unit_id)), max(out$unit_id) < 2^31)
   set.seed(as.integer(settings$cps$filer_seed) + yr)
@@ -466,15 +507,15 @@ for (yr in YEARS) {
                 ot1, ot2, ssn_status1 = as.integer(ssn_status1), ssn_status2 = as.integer(ssn_status2),
                 dep_ssn_status1 = as.integer(dep_ssn_status1), dep_ssn_status2 = as.integer(dep_ssn_status2),
                 dep_ssn_status3 = as.integer(dep_ssn_status3))]
-  # overtime: missing on both adults together, never above the person's wages
+  # 13. Checks, then write the units. Overtime is missing on both adults together and is never above the person's
+  #     wages. Capital gains are missing exactly in the years they were not asked (before tax year 2018).
   stopifnot(identical(is.na(out$ot1), is.na(out$ot2)),
-            all(out[!is.na(ot1), ot1 <= wages1 + 1e-6 & ot1 >= 0]),   # the asked units (the rest are NA by design)
+            all(out[!is.na(ot1), ot1 <= wages1 + 1e-6 & ot1 >= 0]),   # the units asked (the rest are NA by design)
             all(out[!is.na(ot2), ot2 <= wages2 + 1e-6 & ot2 >= 0]),
             all(out[married == 0 & !is.na(ot2), ot2] == 0))
   cat(sprintf('  overtime on units: asked %d of %d units (%.1f%% of the weight); missing on %d units (%d of them asked but with a worker\'s pay missing)\n',
               sum(!is.na(out$ot1)), nrow(out), 100 * sum(out$weight[!is.na(out$ot1)]) / sum(out$weight),
               sum(is.na(out$ot1)), sum(is.na(out$ot1) & out$record_id %in% ot_asked_units)))
-  # capital gains: missing exactly in the years not asked (before tax year 2018)
   stopifnot(if (yr >= 2018) !anyNA(out$capital_gains) else all(is.na(out$capital_gains)))
   stopifnot(!anyNA(out[, !c('ot1', 'ot2', 'capital_gains')]), all(out$weight > 0), all(out$n_dep_under13 <= out$n_dep),
             all(out$n_dep_eitc <= out$n_dep), all((out$filing_status == 2) == (out$married == 1)),
@@ -485,9 +526,8 @@ for (yr in YEARS) {
   fwrite(out, file.path(OUT, sprintf('cps_units_%d.csv.gz', yr)))
   cat(sprintf('  wrote %s\n', file.path(OUT, sprintf('cps_units_%d.csv.gz', yr))))
 
-  #-----------------------------------------------------------------------------
-  # Diagnostics
-  #-----------------------------------------------------------------------------
+  # 14. Print the year's summary and keep its rows: filers and non-filers, EITC returns, the income totals, and
+  #     child care against the SPM units' total.
   w = out$weight
   fs_returns = p[FILESTAT %in% 1:3, sum(ASECWT)] / 2 + p[FILESTAT %in% 4:5, sum(ASECWT)]
   pool_hh = NA_real_
@@ -533,13 +573,12 @@ for (yr in YEARS) {
                recipients_m = NA_real_))
 }
 
+# The summary file and the table of survivor and disability sources each hold every year built so far.
 s = rbindlist(summary_rows)
-# the summary file holds every year built so far
 sp = file.path(OUT, 'cps_summary.csv')
 if (file.exists(sp)) s = rbind(fread(sp)[!year %in% YEARS], s)
 fwrite(s, sp)
 cat('\nwrote', sp, '\n')
-# the survivor and disability sources' table holds every year built so far
 sv = rbindlist(sources_rows)
 svp = file.path(OUT, 'cps_survivor_disability_sources.csv')
 if (file.exists(svp)) sv = rbind(fread(svp)[!year %in% YEARS], sv)
