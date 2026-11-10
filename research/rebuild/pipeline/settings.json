@@ -1999,6 +1999,6 @@
   "tolerance": 0.02,
   "tau": 1000,
   "nonfiler_tolerance": 0.02,
-  "newton_budget": 150
+  "newton_budget": 200
  }
 }

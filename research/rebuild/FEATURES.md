@@ -1125,11 +1125,12 @@ its 2023 split.
   join the national multipliers in the dense part of the Newton system. The system is then one dense matrix of about
   2,300 rows (factored by LU decomposition; it is symmetric but not positive definite), about 580 small blocks, and a
   term for records above their cap. When every area of a group has a target for an item, the item's conditions sum to
-  zero whatever the weights; the standard errors keep the system solvable. Budget 150 Newton steps.
+  zero whatever the weights; the standard errors keep the system solvable. Budget 200 Newton steps (settings
+  `state_weights.newton_budget`; the national solves keep 150).
 - **Future years** (`reweight/state_weights.py --carry`): a record's state weight is the year's national weight times
   its 2023 share, by record id (`shares/shares_2023.npz`). Any record other than a Forbes record that lacks a 2023 share
   stops the stage.
-- **A year that stops short**: one that uses all 150 steps with its largest gradient within 10 times the stopping size
+- **A year that stops short**: one that uses all its steps with its largest gradient within 10 times the stopping size
   is used and named in the log and the check; beyond that its files are written, its job fails and the check stops.
 - **Check** (`state_weights.py --check`): every year's file and state weights against each other, into
   `checks/by_year.csv`.
