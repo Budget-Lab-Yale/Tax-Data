@@ -8,7 +8,7 @@ entries in ten are zero.
 The table is therefore kept as a sparse matrix (scipy.sparse), which stores only the entries that are not zero, with
 their positions. Two layouts are used. The layout by column (CSC) keeps each target's entries together and is used to
 build the table and to read one target's column. The layout by row (CSR) keeps each record's entries together and is
-used to pick records and to work through the table a block of records at a time.
+used to work through the table a block of records at a time.
 
 The solver needs products of the whole table with itself (solver.py, the Hessian). Those are computed on blocks of
 records: each block is written out in full, with its zeros, multiplied, and added to the result. Only one block is held
