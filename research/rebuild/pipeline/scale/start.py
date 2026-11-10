@@ -22,8 +22,9 @@ from shared.common import TARGET_YEAR as Y
 def recombine(df, year):
     """Recomputes every column that dollars.draw_dollars builds from the drawn amounts, in the same order: the totals,
     other AGI, taxable Social Security, amounts made from a share, remainders, net worth, and the retirement-plan
-    deferral items of tax year year. Returns the frame and the names of the columns recomputed."""
-    out, done = df.copy(), []
+    deferral items of tax year year. Returns the frame and the names of the columns recomputed. The frame returned
+    shares with df the columns that are not recomputed; they are not copied."""
+    out, done = df.copy(deep=False), []
 
     def put(col, values):
         out[col] = values
@@ -128,7 +129,7 @@ def grow_dollars(df, s, t, mode='per_return_growth'):
 
     # 2. List the columns to grow, by source. Two PUF items are grown through the column that holds their drawn part:
     #    other AGI through other_agi_remainder, and business income through business_income_drawn.
-    out, rows = df.copy(), []
+    out, rows = df.copy(deep=False), []   # a grown column is replaced whole; the others are shared with df, not copied
     item_mode = mode == 'item_factor'
     tab, deferred = None, None
     if item_mode:

@@ -58,7 +58,11 @@ def network_part(g19, raw, imp, year, mode):
     if 'billionaire' in g19:
         old = g19['billionaire'].to_numpy() == 1
         notes.append(f'start: {int(old.sum())} billionaire records of the earlier year removed')
-        g19, raw, imp = g19.loc[~old].reset_index(drop=True), raw.loc[~old].reset_index(drop=True), imp[~old]
+        # A start from an earlier year's file has no separate table of bands and picks: raw is g19 itself, and the
+        # records are cut once.
+        same = raw is g19
+        g19, imp = g19.loc[~old].reset_index(drop=True), imp[~old]
+        raw = g19 if same else raw.loc[~old].reset_index(drop=True)
     given = np.zeros(len(g19), bool)
     # 2. Part A.
     h = _hidden_returns(g19, year, mode, notes)
@@ -164,7 +168,7 @@ def add_list(g19, imp, given, fixed, rep, year):
     ceiling = TLS.net_worth_ceiling(POPULATION)
     # 4. Add the year's list, or the last list grown to the year.
     kind, lst, list_year = TB.list_for_year(year)
-    g19 = g19.copy()
+    g19 = g19.copy(deep=False)   # the three columns below are new or replaced whole; the others are shared, not copied
     g19['billionaire'], g19['billionaire_rank'], g19['forbes_uri'] = 0, -1, ''
     if kind == 'grown':
         lst = TB.grow_list(TB.read_list(list_year), list_year, year,
