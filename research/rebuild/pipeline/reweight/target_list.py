@@ -451,6 +451,26 @@ def table_17_item(v, st):
     return items[st]
 
 
+def published_14a(year, cells, v, stats):
+    """Target rows from Table 1.4A, sales of capital assets on Schedule D, read from the SOI mirror: the all-AGI total
+    of the count and amount items that the variable names under "soi 1.4A" in the catalog. Amounts are published in
+    thousands and returned in dollars. Only the cell 'all' is read; a blank cell stops the run."""
+    (c,) = cells
+    assert c['agi'] is None and not c['parts'], f'Table 1.4A: all-AGI totals only, not {c["label"]}'
+    items = variable_def(v).get('soi 1.4A')
+    t = pd.read_csv(os.path.join(TG.MIRROR, CAT['sources']['soi 1.4A']['file']), dtype=str, keep_default_na=False)
+    t = t[(t['tax_year'] == str(year)) & (t['table'] == '1.4A') & (t['panel'] == 'All returns')
+          & (t['row_label'] == 'All returns, total')]
+    out = []
+    for st in stats:
+        assert items and st in items, f'Table 1.4A: no item for {v} {st} in the catalog'
+        (val,) = t.loc[t['item'] == items[st], 'value']
+        assert val != '', f'Table 1.4A {year}: a blank all-returns cell for {items[st]}'
+        out.append({'cell': 'all', 'statistic': st, 'value': float(val) * (1000.0 if st == 'amount' else 1.0),
+                    'source': f'soi 1.4A {year}: {items[st]}, all returns'})
+    return out
+
+
 def published_17(soi, year, cells, v, stats):
     """Target rows from Table 1.7, dependent filers by AGI, read from the SOI mirror (targets/soi.csv holds Tables 1.4
     and 1.2 only). The statistics are the number of returns (units), and the amount and count of the item the
@@ -1545,6 +1565,8 @@ def entry_rows(e, year, soi, v):
             return published_21(year, cells, v, stats)
         if src == 'soi 1.7':
             return published_17(soi, year, cells, v, stats)
+        if src == 'soi 1.4A':
+            return published_14a(year, cells, v, stats)
         if src in ('soi 1.4', 'soi 3.3'):
             return published_14(soi, year, cells, v, stats, table=src.split(' ')[1])
         if src == 'soi 2.5':
