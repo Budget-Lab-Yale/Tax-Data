@@ -117,6 +117,14 @@ billion on 7.8 million). The four aggregate records keep the gap alone, on the s
 other way, line 13 above the allowed sum ($0.1 billion on 1.7 million returns), stays in other AGI, so each PUF
 record's AGI is still the PUF's.
 
+Losses before the limit grow with their own line, not with gains: from the PUF year to each year through 2023 with
+Table 1.4A's net short-term or long-term loss per return with one (growth series `soi 1.4A`), and after 2023 with
+CBO's capital gains per return, which keeps 2023's ratio of losses to gains. Gains grow as before. Each past year
+2015-2023 also targets Table 1.4A's all-returns totals: the returns with a net short-term loss and the loss, and the
+same for long-term (entry `irs_capital_losses`; errors borrowed from the nearest Table 1.4 cells). Without them the
+reweighting, which sees only line 13, raised one rebuilt top return with a $4.25 billion short-term loss to a weight
+of 962 in 2023.
+
 **Self-employment earnings other than Schedules C and F (`part_se`)** (`prep/earn_split.part_se_from_schedule_se`;
 the same rule in `generate/top_hidden.py` and in both merge scripts). E30400 is the lesser of a person's Schedule SE
 net earnings and the room under the Social Security wage base, so it cannot be read directly. The rule:
@@ -728,7 +736,8 @@ pipeline stops if an item has none. Sources must be exogenous to tax policy.
 
 - **PUF items**: each band's real 2015 values, grown by SOI's growth in dollars per return holding the item where Table
   1.4 has it (qualified dividends; ordinary dividends for `div_ord`; each adjustment; Schedule D net gain for the gain
-  pieces, losses included; partnership and S corporation income for `part_se`; total less taxable pensions for the
+  pieces; for `kg_st` and `kg_lt` where negative, Table 1.4A's net short-term or long-term loss per return with one,
+  and after 2023 CBO's capital gains per return; partnership and S corporation income for `part_se`; total less taxable pensions for the
   non-taxable rest). Capital losses held at the allowed loss stay there after growth. Items with no Table 1.4 line:
 
 | Item | Series | Measure | 2015 to 2019 |
@@ -987,12 +996,12 @@ coefficients of variation for Tables 1.4, 2.1 and 3.3; errors borrowed from neig
 difference replication); a judgment number with a reason otherwise. `TARGETS.md` describes the configuration, the
 errors and the principles.
 
-A past year has 1,231-1,343 targets (2019: 1,325); a projection year about 305 (2024: 427, with the filing-season
+A past year has 1,235-1,347 targets (2019: 1,329); a projection year about 305 (2024: 427, with the filing-season
 groups). The families in a past year, with 2019's counts:
 
 | Kind | Targets (2019) | What |
 |---|---:|---|
-| IRS | 222 | SOI Table 1.4 by AGI bracket (the five top brackets, $1M-1.5M to $10M+, separate): returns and the count and amount of wages, interest, dividends and capital gains; the other income items on a broad grid; Table 1.2 joint returns; state refunds, other Table 1.4 lines, alimony |
+| IRS | 226 | SOI Table 1.4 by AGI bracket (the five top brackets, $1M-1.5M to $10M+, separate): returns and the count and amount of wages, interest, dividends and capital gains; the other income items on a broad grid; Table 1.2 joint returns; state refunds, other Table 1.4 lines, alimony; Table 1.4A net short-term and long-term loss before the limit, all returns |
 | business | 128 | net income and loss, returns and dollars: Schedule C and partnership and S corporation in 10 AGI groups, rent and royalty, farm and farm rental, estates and trusts, Form 4797, in 6; cells SOI combined are merged; 2021 on, partnerships and S corporations separately |
 | soi 1.3 | 86 | Table 1.3: returns and AGI in each filing status, income items for single, joint and head of household returns; capital loss measured as the loss allowed on the return |
 | soi 4.3 | 72 | Table 4.3: returns, AGI and 8 income items in the top 0.001%, 0.01%, 0.1% and 1% of AGI, returns other than dependent filers' |
