@@ -1270,3 +1270,13 @@ deductions (John, 7 November) every year converges. Against run7: tax after cred
 national misses about the same; 99.75-99.89% of state targets within 2%; self-employment tax before reweighting $69.7
 billion in 2019 against SOI's $67.3 billion (run7 $56.6 billion); the QBI deduction within $0.5 billion of SOI in each AGI
 group after reweighting, 59% of the 20% kept. Report: `explore/2026-11-06/retrain/run/STEP8.md`.
+
+**12-13 November: capital loss carryovers (issue 33, branch `rebuild-issue33-carryover`; John approved the merge and
+install 13 November).** Losses before the $3,000 limit were far below SOI Table 1.4A (2015 long-term $55 billion
+against $313 billion) because the PUF's P22250 and P23250 leave out loss carryovers, which Table 1.4A's Schedule D
+lines 7 and 15 include. Three changes, each followed by a run: carryovers imputed on the PUF records (run 1: 2015 near
+SOI, later years overshot, as losses grew with gains); losses grown with Table 1.4A's loss per loss return (run 2:
+long-term near SOI, short-term $4.8 trillion in 2023 from one rebuilt top return the reweighting raised to a weight of
+962); Table 1.4A's loss totals as targets 2015-2023 (run 3: every total and count on SOI, reweighting cost within 1% of
+run 2). PSL's Tax-Calculator, taxdata and TMD use the two fields as lines 7 and 15. Run 3 (networks retrained in run 2)
+installed. Notes: `experiments/issue33_2026-11-12/NOTES.md`; runs: `explore/2026-11-12/issue33/STATUS.md`.

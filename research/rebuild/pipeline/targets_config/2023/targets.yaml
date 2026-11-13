@@ -56,6 +56,20 @@ targets:
     error: {kind: soi_cv}
     key: {group: '{cell}', target: '{variable} {statistic}'}
 
+  # SOI Table 1.4A: the net short-term and net long-term capital loss, all returns, the number of returns and the
+  # amount. These are Schedule D lines 7 and 15 where negative, loss carryovers included and before the $3,000 limit
+  # (the file's kg_st and kg_lt). Line 13 is targeted by AGI above; without these totals the reweighting can raise a
+  # record with a large loss behind the limit without limit, as no other target sees it (issue 33).
+  - id: irs_capital_losses
+    kind: IRS
+    statistic: [count, amount]
+    population: filers
+    variable: [net_short_term_loss, net_long_term_loss]
+    cells: all
+    value: {published: soi 1.4A}
+    error: {kind: soi_borrowed}
+    key: {group: all, target: '{variable} {statistic}'}
+
   # Joint returns (married filing jointly and surviving spouses), all AGI, from Table 1.2.
   - id: joint_returns
     kind: IRS

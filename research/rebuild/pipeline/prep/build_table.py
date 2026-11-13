@@ -25,6 +25,7 @@ import pandas as pd
 from shared import ages
 from shared import common
 from prep import earn_split as ES
+from prep import loss_carryover as LC
 from shared import growth as GR
 from prep import soi as TG
 from shared import translate as TR
@@ -246,18 +247,20 @@ def read_puf():
     return raw[raw.RECID < 999996].reset_index(drop=True)
 
 
-def puf_items(f, itemizer, medical_floor):
+def puf_items(f, itemizer, medical_floor, recid=None):
     """The PUF amounts the table uses, from the raw fields f (a dict of arrays of whole dollars): wages and interest,
     the parts of dividends, the pieces of capital gains, the parts of business income, the items, the parts of the
     adjustments, the further items, Schedule SE earnings outside Schedules C and F, other itemized deductions and the
     rest of AGI. The totals in COMPUTED are the signed sums of these. itemizer marks the returns that itemize.
     medical_floor is the share of AGI below which medical expenses are not deducted (one number, or one per record)."""
     out = {'wages': f['E00200'], 'txbl_int': f['E00300'], 'div_pref': f['E00650'], 'div_ord': f['E00600'] - f['E00650']}
-    # Disclosure protection changes each PUF field on its own, so line 13 (E01000) can fall below the Schedule D net
-    # (P22250 + P23250, with a loss held to the limit). The shortfall is put on the short-term piece, so that line 13
-    # again equals the allowed net. A gap the other way stays in other_agi.
-    left = f['E01000'] - common.allowed_capital_gain(f['P22250'] + f['P23250'], f['MARS'])
-    out.update(kg_st=f['P22250'] + np.minimum(left, 0), kg_lt=f['P23250'], kg_dist=f['E01100'])
+    # The PUF's Schedule D fields leave out the capital loss carryovers; kg_st and kg_lt are Schedule D lines 7 and 15,
+    # which include them. Each record's carryover is made in loss_carryover.py (recid gives the record; without it
+    # the carryover is the part line 13 shows). Line 13 (E01000) again equals the allowed net. Where line 13 is above
+    # the allowed sum of the two fields (disclosure protection changes each field on its own), the gap stays in
+    # other_agi.
+    kg_st, kg_lt = LC.schedule_d_lines(f['P22250'], f['P23250'], f['E01000'], f['MARS'], recid)
+    out.update(kg_st=kg_st, kg_lt=kg_lt, kg_dist=f['E01100'])
     out.update({p: f[fld] for p, (fld, _) in PARTS.items() if fld})
     out['sche_other'] = f['E02000'] - sum(PARTS[p][1] * out[p] for p in SCHE_PARTS)
     out.update(other_gains=f['E01200'], txbl_ira_dist=f['E01400'], txbl_pens_dist=f['E01700'],
@@ -314,7 +317,7 @@ def puf_rows(puf):
     assert np.array_equal(rng.RECID.to_numpy(), raw.RECID.to_numpy())
     old = (rng.age_range.to_numpy() == 5) | (probs[:, 5] > 0.5)
     f = {c: x.astype(float) for c, x in I.items()}
-    out.update(puf_items(f, I['FDED'] == 1, np.where(old, 0.075, 0.1)))
+    out.update(puf_items(f, I['FDED'] == 1, np.where(old, 0.075, 0.1), raw.RECID.to_numpy()))
     for v, parts in COMPUTED.items():
         out[v] = sum(sg * out[p] for p, sg in parts.items())
     out['k1_owner'] = np.column_stack([out[p] != 0 for p in K1_PARTS]).any(1).astype(np.int64)

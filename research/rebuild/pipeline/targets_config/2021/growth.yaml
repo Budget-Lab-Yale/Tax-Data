@@ -34,14 +34,14 @@ items:
     reason: 'gains and losses grow with Schedule D net gain per return with one: the losses are the Schedule D losses before the $3,000 limit, which move with asset prices as the gains do; the limit, nominal and not indexed, is applied where AGI is made (common.allowed_capital_gain) and by the calculator'
   kg_st:
     source: {series: soi 1.4, item: sch_d_net_gain}
-    negative: same
-    measure: 'dollars per return with a Schedule D net gain (SOI Table 1.4)'
-    reason: 'gains and losses grow with Schedule D net gain per return with one: the losses are the Schedule D losses before the $3,000 limit, which move with asset prices as the gains do; the limit, nominal and not indexed, is applied where AGI is made (common.allowed_capital_gain) and by the calculator'
+    negative: {series: soi 1.4A, item: net short term capital loss}
+    measure: 'gains: dollars per return with a Schedule D net gain (SOI Table 1.4); losses: net short-term capital loss per return with one (SOI Table 1.4A), past its last year with CBO capital gain or loss per return'
+    reason: 'gains grow with Schedule D net gain per return with one. Losses are Schedule D line 7 where negative, loss carryovers included and before the $3,000 limit; they grow with their own Table 1.4A line, which does not move with gains (2015-2023 long-term losses $295-450 billion while net gains ran $640 billion to $1.9 trillion; issue 33). Past Table 1.4A they grow with CBO capital gains per return, keeping the last year ratio of losses to gains (John, 12 November 2026). The limit, nominal and not indexed, is applied where AGI is made (common.allowed_capital_gain) and by the calculator'
   kg_lt:
     source: {series: soi 1.4, item: sch_d_net_gain}
-    negative: same
-    measure: 'dollars per return with a Schedule D net gain (SOI Table 1.4)'
-    reason: 'gains and losses grow with Schedule D net gain per return with one: the losses are the Schedule D losses before the $3,000 limit, which move with asset prices as the gains do; the limit, nominal and not indexed, is applied where AGI is made (common.allowed_capital_gain) and by the calculator'
+    negative: {series: soi 1.4A, item: net long term capital loss}
+    measure: 'gains: dollars per return with a Schedule D net gain (SOI Table 1.4); losses: net long-term capital loss per return with one (SOI Table 1.4A), past its last year with CBO capital gain or loss per return'
+    reason: 'gains grow with Schedule D net gain per return with one. Losses are Schedule D line 15 where negative, loss carryovers included and before the $3,000 limit; they grow with their own Table 1.4A line, which does not move with gains (2015-2023 long-term losses $295-450 billion while net gains ran $640 billion to $1.9 trillion; issue 33). Past Table 1.4A they grow with CBO capital gains per return, keeping the last year ratio of losses to gains (John, 12 November 2026). The limit, nominal and not indexed, is applied where AGI is made (common.allowed_capital_gain) and by the calculator'
   kg_dist:
     source: {series: soi 1.4, item: kg_dist}
     negative: 'none: capital gain distributions are not negative'

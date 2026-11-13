@@ -487,6 +487,35 @@ def all_returns(y):
     return carried(lambda b: totals()[(b, 'number of returns')], y, 'Number of returns')
 
 
+# ---- Table 1.4A: net short-term and long-term capital losses ----
+# Schedule D's net short-term and long-term losses (lines 7 and 15 where negative, loss carryovers included) are
+# grown with their own dollars per return with the loss, from Table 1.4A's all-returns totals. Past the table's last
+# year they grow with CBO's capital gain or loss per return, so the last year's ratio of losses to gains is kept.
+T14A_ITEMS = ('net short term capital loss', 'net long term capital loss')
+_T14A = None   # Table 1.4A's all-returns totals, read once
+
+
+def table_1_4a():
+    """{(tax year, SOI item): value} for Table 1.4A's all-returns totals (read once)."""
+    global _T14A
+    if _T14A is None:
+        t = pd.read_csv(os.path.join(MIRROR, 'bysize_capital_assets.csv'), dtype=str)
+        t = t[(t['table'] == '1.4A') & (t['panel'] == 'All returns') & (t['row_label'] == 'All returns, total')]
+        _T14A = {(int(r.tax_year), r.item.lower().strip()): float(r.value) for r in t.itertuples()}
+    return _T14A
+
+
+def loss_growth(item, year):
+    """The growth of a net capital loss (T14A_ITEMS) in dollars per return with the loss, from the PUF year to year."""
+    assert item in T14A_ITEMS, f'Table 1.4A item {item!r}: not one of {T14A_ITEMS}'
+    t = table_1_4a()
+    per = lambda b: t[(b, item + ' > amount')] / t[(b, item + ' > number of returns')]
+    last = max(y for y, n in t if n == item + ' > amount')
+    if year <= last:
+        return per(year) / per(common.PUF_YEAR)
+    return per(last) / per(common.PUF_YEAR) * cbo_growth('Capital gain or loss', last, year)
+
+
 # ---- Table 1.6: returns by filing status and the primary filer's age ----
 # Before 2015, joint returns and returns of surviving spouses are two panels; they are added together.
 T16_PANELS = {'joint': ['Returns of married persons filing jointly and returns of surviving spouses',

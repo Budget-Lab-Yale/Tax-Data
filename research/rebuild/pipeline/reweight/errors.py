@@ -159,6 +159,18 @@ def soi_errors(rows, year):
     yr = '' if cv_year == year else f' (the {cv_year} CVs: no CV workbook for {year})'
     out = []
     for r in rows.itertuples():
+        if str(r.source).startswith('soi 1.4A '):
+            # Table 1.4A publishes no CVs. A count borrows from the Table 1.4 count cells closest in returns; an amount
+            # from the amount cells closest in amount and in the returns with the item, published beside it.
+            if r.statistic == 'amount':
+                n = TLS.published_14a(year, [TLS.new_cell({}, 'all')], r.variable, ['count'])[0]['value']
+                cv, what = borrow_cv(cells, amount=r.value, returns=n)
+            else:
+                cv, what = borrow_cv(cells, count=r.value)
+            out.append((r.Index, r.value * cv / 100, 'soi_borrowed',
+                        f'Table 1.4A {r.statistic}, CV {cv:.2f}%: median of the {BORROW_K} Table 1.4 {r.statistic} cells '
+                        f'closest{" in amount and in returns with the item" if r.statistic == "amount" else " in returns"}{yr}: {what}'))
+            continue
         if r.kind == 'dependent filers' and r.statistic == 'amount':
             # A Table 1.7 amount borrows from the Table 1.4 amount cells closest in amount and in the number of returns
             # with the item, which Table 1.7 publishes beside the amount.

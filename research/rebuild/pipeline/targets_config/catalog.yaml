@@ -37,6 +37,12 @@ sources:
     what: >-
       SOI Publication 1304, Table 1.7, returns of dependents (dependent filers) by size of AGI, read from the mirror:
       the number of returns, and the items a variable names under "soi 1.7" (the net capital gain)
+  soi 1.4A:
+    kind: published
+    file: bysize_capital_assets.csv
+    what: >-
+      SOI Publication 1304, Table 1.4A, sales of capital assets reported on Form 1040 Schedule D, all returns, read
+      from the mirror (target_list.published_14a): the all-AGI totals of the items a variable names under "soi 1.4A"
   soi 2.5:
     kind: published
     file: bysize_eitc.csv
@@ -430,6 +436,28 @@ variables:
     soi 1.7:
       count: sales of capital assets > taxable net loss > number of returns
       amount: sales of capital assets > taxable net loss > amount
+  # Schedule D lines 7 and 15, the file's kg_st and kg_lt (loss carryovers included), and their net losses before the
+  # $3,000 limit, stored positive: Table 1.4A's net short-term and net long-term capital loss (issue 33).
+  short_term_gain_loss:
+    record: kg_st
+    short: kg_st
+  long_term_gain_loss:
+    record: kg_lt
+    short: kg_lt
+  net_short_term_loss:
+    base: short_term_gain_loss
+    transform: loss
+    short: net short-term capital loss
+    soi 1.4A:
+      count: net short term capital loss > number of returns
+      amount: net short term capital loss > amount
+  net_long_term_loss:
+    base: long_term_gain_loss
+    transform: loss
+    short: net long-term capital loss
+    soi 1.4A:
+      count: net long term capital loss > number of returns
+      amount: net long term capital loss > amount
   other_gains:
     record: other_gains
     short: other_gains
