@@ -24,6 +24,8 @@ LINE_KEYS = {'source', 'negative', 'measure', 'reason'}   # the keys every growt
 # Each series: (what it measures, in words; its data files in RESOURCES, or None if it reads other sources)
 SERIES = {
     'soi 1.4': ('dollars per return with the item, SOI Table 1.4', None),
+    'soi 1.4A': ('net short-term or long-term capital loss per return with the loss, SOI Table 1.4A; past its last year '
+                 'with CBO capital gain or loss per return', None),
     'agi per return': ('AGI per return, all returns (SOI Table 1.1), extended by BEA personal income per capita',
                        None),
     'bea mortgage interest per mortgaged owner': (
@@ -100,6 +102,8 @@ def load(year=common.TARGET_YEAR):
                                + (' or "same"' if side == 'negative' else ''))
                 elif spec['series'] == 'soi 1.4' and ('item' in spec) == ('rows' in spec):
                     bad.append(f'{v}: an SOI 1.4 source names an item or rows (not both)')
+                elif spec['series'] == 'soi 1.4A' and spec.get('item') not in TG.T14A_ITEMS:
+                    bad.append(f'{v}: an SOI 1.4A source names one item of {TG.T14A_ITEMS}')
         assert not bad, f'{p}:\n  ' + '\n  '.join(bad)
         _LOADED[year] = items
     return _LOADED[year]
@@ -239,6 +243,8 @@ def _level(spec, y):
 
 def _factor(spec, y):
     """The factor of one side's series from the PUF year to y."""
+    if spec['series'] == 'soi 1.4A':
+        return TG.loss_growth(spec['item'], y)
     if spec['series'] == 'soi 1.4':
         if 'item' in spec:
             return TG.per_return_growth(spec['item'], year=y)
